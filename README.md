@@ -38,22 +38,59 @@
 - MySQL 8.0
 - Gradle 8.x（已内置 Wrapper）
 
-### 数据库准备
+### 数据库准备（Colima + Docker）
 
-```sql
-CREATE DATABASE password_manager DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```bash
+# 启动 Colima
+colima start
+
+# 启动 MySQL 8.0 容器
+docker run -d \
+  --name password-manager-mysql \
+  -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=root \
+  -e MYSQL_DATABASE=password_manager \
+  -e MYSQL_CHARSET=utf8mb4 \
+  -v pm-mysql-data:/var/lib/mysql \
+  mysql:8.0 \
+  --character-set-name=utf8mb4 \
+  --collation-server=utf8mb4_unicode_ci
+```
+
+容器启动后数据库 `password_manager` 会自动创建，连接信息：
+
+| 参数 | 值 |
+|------|----|
+| Host | localhost |
+| Port | 3306 |
+| 用户名 | root |
+| 密码 | root |
+| 数据库 | password_manager |
+
+常用命令：
+
+```bash
+# 查看容器状态
+docker ps
+
+# 停止 / 启动
+docker stop password-manager-mysql
+docker start password-manager-mysql
+
+# 连接数据库（需安装 mysql-client: brew install mysql-client）
+mysql -h 127.0.0.1 -u root -proot password_manager
 ```
 
 ### 配置
 
-编辑 `src/main/resources/application.yml`，修改数据库连接信息：
+默认配置已对应上述 Docker 环境，如需修改请编辑 `src/main/resources/application.yml`：
 
 ```yaml
 spring:
   datasource:
     url: jdbc:mysql://localhost:3306/password_manager
-    username: your_username
-    password: your_password
+    username: root
+    password: root
 ```
 
 ### 构建与运行
