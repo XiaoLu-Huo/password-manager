@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("user")
+@TableName("pm_user")
 public class UserEntity {
 
     @TableId(type = IdType.AUTO)
