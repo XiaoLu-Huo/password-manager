@@ -130,7 +130,7 @@
   - 确保所有测试通过，如有问题请向用户确认。
 
 - [ ] 6. 实现密码生成器
-  - [ ] 6.1 实现 `PasswordGeneratorService` 及 `PasswordGeneratorServiceImpl`
+  - [x] 6.1 实现 `PasswordGeneratorService` 及 `PasswordGeneratorServiceImpl`
     - 实现默认规则生成（16 位，含大小写字母、数字、特殊字符）
     - 实现自定义规则生成（长度 8-128，可配置字符类型）
     - 使用 `SecureRandom` 生成密码，确保每种启用类型至少包含一个字符

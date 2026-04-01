@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("password_rule")
+@TableName("pm_password_rule")
 public class PasswordRuleEntity {
 
     @TableId(type = IdType.AUTO)
