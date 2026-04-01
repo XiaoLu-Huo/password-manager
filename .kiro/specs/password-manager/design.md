@@ -61,26 +61,26 @@ graph TB
 
 ### 技术栈选型
 
-| 层级 | 技术 | 版本 | 说明 |
-|------|------|------|------|
-| 后端语言 | Java | 17 | LTS 版本 |
-| 后端框架 | Spring Boot | 3.x | 主框架 |
-| ORM | MyBatis-Plus | 3.5.x | 数据访问 |
-| 数据库 | MySQL | 8.0 | 本地存储 |
-| 数据库迁移 | Flyway | 9.x | Schema 版本管理 |
-| API 文档 | SpringDoc OpenAPI | 2.x | 自动生成 API 文档 |
-| 工具库 | Lombok + MapStruct | - | 减少样板代码 |
-| 密码哈希 | Bouncy Castle (Argon2id) | 1.7x | 主密码哈希 |
-| 对称加密 | JCE (AES-256-GCM) | - | 凭证数据加密 |
-| TOTP | java-totp | 1.x | 多因素认证 |
-| 随机数 | java.security.SecureRandom | - | CSPRNG |
-| 构建工具 | Gradle | 8.x | 项目构建 |
-| Excel 处理 | EasyExcel | 3.x | Excel 导入导出及加密 |
-| 前端框架 | React + TypeScript | 18.x / 5.x | Electron 渲染层 |
-| 桌面壳 | Electron | 28.x | 桌面应用 |
-| 浏览器插件 | Chrome Extension | Manifest V3 | 浏览器集成 |
-| 属性测试 | jqwik | 1.8.x | Property-Based Testing |
-| 单元测试 | JUnit 5 + Mockito + AssertJ | - | 单元/集成测试 |
+| 层级　　　 | 技术　　　　　　　　　　　　| 版本　　　　| 说明　　　　　　　　　 |
+| ------------| -----------------------------| -------------| ------------------------|
+| 后端语言　 | Java　　　　　　　　　　　　| 17　　　　　| LTS 版本　　　　　　　 |
+| 后端框架　 | Spring Boot　　　　　　　　 | 3.x　　　　 | 主框架　　　　　　　　 |
+| ORM　　　　| MyBatis-Plus　　　　　　　　| 3.5.x　　　 | 数据访问　　　　　　　 |
+| 数据库　　 | MySQL　　　　　　　　　　　 | 8.0　　　　 | 本地存储　　　　　　　 |
+| 数据库迁移 | Flyway　　　　　　　　　　　| 9.x　　　　 | Schema 版本管理　　　　|
+| API 文档　 | SpringDoc OpenAPI　　　　　 | 2.x　　　　 | 自动生成 API 文档　　　|
+| 工具库　　 | Lombok + MapStruct　　　　　| -　　　　　 | 减少样板代码　　　　　 |
+| 密码哈希　 | Bouncy Castle (Argon2id)　　| 1.7x　　　　| 主密码哈希　　　　　　 |
+| 对称加密　 | JCE (AES-256-GCM)　　　　　 | -　　　　　 | 凭证数据加密　　　　　 |
+| TOTP　　　 | java-totp　　　　　　　　　 | 1.x　　　　 | 多因素认证　　　　　　 |
+| 随机数　　 | java.security.SecureRandom　| -　　　　　 | CSPRNG　　　　　　　　 |
+| 构建工具　 | Gradle　　　　　　　　　　　| 8.x　　　　 | 项目构建　　　　　　　 |
+| Excel 处理 | EasyExcel　　　　　　　　　 | 3.x　　　　 | Excel 导入导出及加密　 |
+| 前端框架　 | React + TypeScript　　　　　| 18.x / 5.x　| Electron 渲染层　　　　|
+| 桌面壳　　 | Electron　　　　　　　　　　| 28.x　　　　| 桌面应用　　　　　　　 |
+| 浏览器插件 | Chrome Extension　　　　　　| Manifest V3 | 浏览器集成　　　　　　 |
+| 属性测试　 | jqwik　　　　　　　　　　　 | 1.8.x　　　 | Property-Based Testing |
+| 单元测试　 | JUnit 5 + Mockito + AssertJ | -　　　　　 | 单元/集成测试　　　　　|
 
 
 ## 组件与接口
