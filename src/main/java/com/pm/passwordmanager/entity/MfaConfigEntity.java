@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("mfa_config")
+@TableName("pm_mfa_config")
 public class MfaConfigEntity {
 
     @TableId(type = IdType.AUTO)

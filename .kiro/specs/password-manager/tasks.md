@@ -95,7 +95,7 @@
     - 验证：连续 5 次错误密码后账户锁定 15 分钟
     - **验证需求: 1.5**
 
-  - [ ] 4.4 实现 `MfaService` 及 `MfaServiceImpl`
+  - [x] 4.4 实现 `MfaService` 及 `MfaServiceImpl`
     - 实现启用 MFA：生成 TOTP 密钥、二维码、恢复码
     - 实现 TOTP 验证逻辑
     - 实现禁用 MFA
