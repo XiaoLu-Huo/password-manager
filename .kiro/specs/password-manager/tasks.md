@@ -71,7 +71,7 @@
     - 使用 java-totp 库实现 TOTP 密钥生成、二维码 URI 生成、验证码验证
     - _需求: 1.9, 1.10, 1.11_
 
-  - [ ] 2.8 实现 CSPRNG 工具 (`SecureRandomUtil`)
+  - [x] 2.8 实现 CSPRNG 工具 (`SecureRandomUtil`)
     - 基于 `java.security.SecureRandom` 封装密码学安全随机数生成
     - _需求: 2.9_
 
