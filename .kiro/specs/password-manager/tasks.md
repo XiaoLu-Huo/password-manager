@@ -148,7 +148,7 @@
     - 验证：保存自定义规则后查询应返回等价配置
     - **验证需求: 2.6**
 
-  - [-] 6.4 实现 `PasswordGenController`
+  - [x] 6.4 实现 `PasswordGenController`
     - 实现 `POST /api/password-generator/generate`、`POST /api/password-generator/evaluate`、密码规则 CRUD 端点
     - _需求: 2.1 ~ 2.10_
 
