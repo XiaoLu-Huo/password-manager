@@ -106,7 +106,7 @@
     - 验证：启用 MFA 后，仅主密码不足以解锁，需同时提供有效 TOTP 码
     - **验证需求: 1.10, 1.11**
 
-  - [ ] 4.6 实现 `SessionService` 及 `SessionServiceImpl`
+  - [x] 4.6 实现 `SessionService` 及 `SessionServiceImpl`
     - 管理内存中的 DEK 会话
     - 实现自动锁定超时检测
     - 实现锁定时清除内存中所有解密数据
