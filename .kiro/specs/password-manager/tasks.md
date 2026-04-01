@@ -25,13 +25,13 @@
     - 创建 `GlobalExceptionHandler` 全局异常处理器
     - _需求: 全局错误处理_
 
-  - [ ] 1.4 创建数据库实体与 MyBatis-Plus Mapper
+  - [x] 1.4 创建数据库实体与 MyBatis-Plus Mapper
     - 创建 `UserEntity`、`CredentialEntity`、`PasswordHistoryEntity`、`PasswordRuleEntity`、`MfaConfigEntity`
     - 创建对应的 Mapper 接口：`UserMapper`、`CredentialMapper`、`PasswordHistoryMapper`、`PasswordRuleMapper`、`MfaConfigMapper`
     - 配置 `MyBatisPlusConfig`（分页插件等）
     - _需求: 全局数据模型_
 
-  - [ ] 1.5 创建所有 DTO（Request/Response）类
+  - [x] 1.5 创建所有 DTO（Request/Response）类
     - 创建 request 包下所有请求 DTO：`CreateMasterPasswordRequest`、`UnlockVaultRequest`、`VerifyTotpRequest`、`EnableMfaRequest`、`GeneratePasswordRequest`、`CreateCredentialRequest`、`UpdateCredentialRequest`、`SearchCredentialRequest`、`ImportRequest`、`ExportRequest`、`UpdateSettingsRequest`
     - 创建 response 包下所有响应 DTO：`UnlockResultResponse`、`MfaSetupResponse`、`GeneratedPasswordResponse`、`CredentialResponse`、`CredentialListResponse`、`SecurityReportResponse`、`PasswordStrengthResponse`、`PasswordHistoryResponse`、`ExportResultResponse`
     - 创建枚举类：`ConflictStrategy`、`PasswordStrengthLevel`
@@ -43,7 +43,7 @@
     - 实现 `hash()`、`verify()`、`deriveKey()`、`generateSalt()` 方法
     - _需求: 1.6, 1.7_
 
-  - [ ]* 2.2 编写 Argon2Hasher 属性测试
+  - [ ] 2.2 编写 Argon2Hasher 属性测试
     - **Property 2: 认证正确性（往返属性）**
     - 验证：对任意密码进行哈希后，使用相同密码验证应成功，使用不同密码验证应失败
     - **验证需求: 1.3, 1.4**
@@ -53,7 +53,7 @@
     - 使用 JCE 的 AES/GCM/NoPadding 模式，IV 长度 96-bit
     - _需求: 1.6, 3.3, 3.7_
 
-  - [ ]* 2.4 编写凭证加密往返属性测试
+  - [ ] 2.4 编写凭证加密往返属性测试
     - **Property 8: 凭证加密往返**
     - 验证：对任意数据使用 DEK 加密后再解密，应得到原始数据
     - **验证需求: 3.3**
@@ -62,7 +62,7 @@
     - 实现强度评估规则：长度 < 8 → 弱；8-15 且 ≥ 2 种字符类型 → 中；≥ 16 且 ≥ 3 种字符类型 → 强
     - _需求: 6.1_
 
-  - [ ]* 2.6 编写密码强度评估属性测试
+  - [ ] 2.6 编写密码强度评估属性测试
     - **Property 13: 密码强度评估规则**
     - 验证：对任意密码字符串，评估结果应符合长度和字符类型的组合规则
     - **验证需求: 6.1**
