@@ -122,11 +122,11 @@
     - 验证：锁定后 DEK 被清除，后续凭证访问被拒绝
     - **验证需求: 8.3, 8.5**
 
-  - [ ] 4.9 实现 `AuthController`
+  - [x] 4.9 实现 `AuthController`
     - 实现 `POST /api/auth/setup`、`POST /api/auth/unlock`、`POST /api/auth/verify-totp`、`POST /api/auth/lock`、`POST /api/auth/mfa/enable`、`POST /api/auth/mfa/disable` 端点
     - _需求: 1.1 ~ 1.13_
 
-- [ ] 5. 检查点 - 确保认证模块测试通过
+- [x] 5. 检查点 - 确保认证模块测试通过
   - 确保所有测试通过，如有问题请向用户确认。
 
 - [ ] 6. 实现密码生成器
