@@ -43,6 +43,8 @@ class AuthServiceImplTest {
     private EncryptionEngine encryptionEngine;
     @Mock
     private SessionService sessionService;
+    @Mock
+    private com.pm.passwordmanager.service.MfaService mfaService;
 
     @InjectMocks
     private AuthServiceImpl authService;

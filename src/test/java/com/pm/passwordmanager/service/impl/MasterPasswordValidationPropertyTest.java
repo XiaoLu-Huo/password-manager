@@ -23,7 +23,7 @@ import net.jqwik.api.Provide;
 @Label("Feature: password-manager, Property 1: 主密码复杂度验证")
 class MasterPasswordValidationPropertyTest {
 
-    private final AuthServiceImpl authService = new AuthServiceImpl(null, null, null, null);
+    private final AuthServiceImpl authService = new AuthServiceImpl(null, null, null, null, null);
 
     /**
      * 长度 ≥ 12 且包含至少三种字符类型的密码应通过验证。

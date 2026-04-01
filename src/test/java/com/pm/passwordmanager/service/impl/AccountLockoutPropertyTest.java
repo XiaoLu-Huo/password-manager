@@ -17,6 +17,7 @@ import com.pm.passwordmanager.entity.UserEntity;
 import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
 import com.pm.passwordmanager.mapper.UserMapper;
+import com.pm.passwordmanager.service.MfaService;
 import com.pm.passwordmanager.service.SessionService;
 import com.pm.passwordmanager.util.Argon2Hasher;
 import com.pm.passwordmanager.util.EncryptedData;
@@ -47,6 +48,7 @@ class AccountLockoutPropertyTest {
     private Argon2Hasher argon2Hasher;
     private EncryptionEngine encryptionEngine;
     private SessionService sessionService;
+    private MfaService mfaService;
     private AuthServiceImpl authService;
 
     private final byte[] testSalt = new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
@@ -61,7 +63,8 @@ class AccountLockoutPropertyTest {
         argon2Hasher = mock(Argon2Hasher.class);
         encryptionEngine = mock(EncryptionEngine.class);
         sessionService = mock(SessionService.class);
-        authService = new AuthServiceImpl(userMapper, argon2Hasher, encryptionEngine, sessionService);
+        mfaService = mock(MfaService.class);
+        authService = new AuthServiceImpl(userMapper, argon2Hasher, encryptionEngine, sessionService, mfaService);
     }
 
     /**

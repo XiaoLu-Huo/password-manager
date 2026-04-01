@@ -13,6 +13,7 @@ import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
 import com.pm.passwordmanager.mapper.UserMapper;
 import com.pm.passwordmanager.service.AuthService;
+import com.pm.passwordmanager.service.MfaService;
 import com.pm.passwordmanager.service.SessionService;
 import com.pm.passwordmanager.util.Argon2Hasher;
 import com.pm.passwordmanager.util.EncryptedData;
@@ -32,6 +33,14 @@ public class AuthServiceImpl implements AuthService {
     private final Argon2Hasher argon2Hasher;
     private final EncryptionEngine encryptionEngine;
     private final SessionService sessionService;
+    private final MfaService mfaService;
+
+    /**
+     * Temporary storage for DEK pending MFA verification.
+     * Key: userId, Value: decrypted DEK bytes.
+     * In production this would use a more robust mechanism, but for single-user local app this suffices.
+     */
+    private final java.util.concurrent.ConcurrentHashMap<Long, byte[]> pendingMfaDek = new java.util.concurrent.ConcurrentHashMap<>();
 
     @Override
     public void setup(CreateMasterPasswordRequest request) {
@@ -101,12 +110,52 @@ public class AuthServiceImpl implements AuthService {
         EncryptedData encryptedDek = splitIvAndCiphertext(user.getEncryptionKeyEncrypted());
         byte[] dek = encryptionEngine.decrypt(encryptedDek, kek);
 
-        // 6. 将 DEK 存入会话
+        // 6. 检查 MFA 是否启用
+        if (mfaService.isMfaEnabled(user.getId())) {
+            // MFA 启用：暂存 DEK，等待 TOTP 验证
+            pendingMfaDek.put(user.getId(), dek);
+            return UnlockResultResponse.builder()
+                    .mfaRequired(true)
+                    .sessionToken(null)
+                    .build();
+        }
+
+        // 7. MFA 未启用：直接将 DEK 存入会话
         sessionService.storeDek(user.getId(), dek);
 
         return UnlockResultResponse.builder()
                 .mfaRequired(false)
                 .sessionToken(null)
+                .build();
+    }
+
+    @Override
+    public UnlockResultResponse verifyTotpAndUnlock(String totpCode) {
+        UserEntity user = getUser();
+
+        // 1. 检查是否有待验证的 MFA 会话
+        byte[] dek = pendingMfaDek.get(user.getId());
+        if (dek == null) {
+            throw new BusinessException(ErrorCode.VAULT_LOCKED);
+        }
+
+        // 2. 临时存入 DEK 以便 MfaService 解密 TOTP 密钥
+        sessionService.storeDek(user.getId(), dek);
+
+        // 3. 验证 TOTP 码
+        boolean valid = mfaService.verifyTotp(user.getId(), totpCode);
+        if (!valid) {
+            // 验证失败：清除临时会话
+            sessionService.clearSession(user.getId());
+            throw new BusinessException(ErrorCode.TOTP_INVALID);
+        }
+
+        // 4. 验证通过：清除待验证状态，DEK 已在会话中
+        pendingMfaDek.remove(user.getId());
+
+        return UnlockResultResponse.builder()
+                .mfaRequired(false)
+                .sessionToken("authenticated")
                 .build();
     }
 

@@ -8,6 +8,10 @@ import com.pm.passwordmanager.dto.response.UnlockResultResponse;
  * 认证服务接口。
  * 负责主密码的创建和密码库的解锁。
  */
+/**
+ * 认证服务接口。
+ * 负责主密码的创建和密码库的解锁。
+ */
 public interface AuthService {
 
     /**
@@ -20,10 +24,18 @@ public interface AuthService {
 
     /**
      * 解锁密码库。
-     * 流程：检查锁定状态 → 验证密码 → 派生 KEK → 解密 DEK → 存入会话
+     * 流程：检查锁定状态 → 验证密码 → 检查 MFA → 派生 KEK → 解密 DEK → 存入会话（或等待 TOTP）
      *
      * @param request 解锁请求
      * @return 解锁结果（包含是否需要 MFA 验证等信息）
      */
     UnlockResultResponse unlock(UnlockVaultRequest request);
+
+    /**
+     * 验证 TOTP 码并完成解锁（MFA 启用时的第二步）。
+     *
+     * @param totpCode TOTP 验证码
+     * @return 解锁结果
+     */
+    UnlockResultResponse verifyTotpAndUnlock(String totpCode);
 }
