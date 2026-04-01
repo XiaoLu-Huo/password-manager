@@ -38,12 +38,12 @@
     - _需求: 全局接口定义_
 
 - [ ] 2. 实现加密引擎与安全工具
-  - [ ] 2.1 实现 Argon2id 哈希工具 (`Argon2Hasher`)
+  - [x] 2.1 实现 Argon2id 哈希工具 (`Argon2Hasher`)
     - 使用 Bouncy Castle 实现 Argon2id 哈希、验证和密钥派生
     - 实现 `hash()`、`verify()`、`deriveKey()`、`generateSalt()` 方法
     - _需求: 1.6, 1.7_
 
-  - [ ] 2.2 编写 Argon2Hasher 属性测试
+  - [-] 2.2 编写 Argon2Hasher 属性测试
     - **Property 2: 认证正确性（往返属性）**
     - 验证：对任意密码进行哈希后，使用相同密码验证应成功，使用不同密码验证应失败
     - **验证需求: 1.3, 1.4**
