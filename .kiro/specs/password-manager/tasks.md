@@ -48,12 +48,12 @@
     - 验证：对任意密码进行哈希后，使用相同密码验证应成功，使用不同密码验证应失败
     - **验证需求: 1.3, 1.4**
 
-  - [ ] 2.3 实现 AES-256-GCM 加密引擎 (`EncryptionEngine`)
+  - [x] 2.3 实现 AES-256-GCM 加密引擎 (`EncryptionEngine`)
     - 实现 `encrypt()`、`decrypt()`、`generateDek()`、`generateIv()` 方法
     - 使用 JCE 的 AES/GCM/NoPadding 模式，IV 长度 96-bit
     - _需求: 1.6, 3.3, 3.7_
 
-  - [ ] 2.4 编写凭证加密往返属性测试
+  - [-] 2.4 编写凭证加密往返属性测试
     - **Property 8: 凭证加密往返**
     - 验证：对任意数据使用 DEK 加密后再解密，应得到原始数据
     - **验证需求: 3.3**
