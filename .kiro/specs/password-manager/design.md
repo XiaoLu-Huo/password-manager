@@ -436,7 +436,7 @@ erDiagram
 
     CREDENTIAL {
         bigint id PK "主键，自增"
-        bigint user_id FK "用户 ID"
+        bigint user_id "用户 ID"
         varchar account_name "账户名称（明文）"
         varchar username "用户名（明文）"
         blob password_encrypted "密码（AES-256-GCM 加密）"
@@ -450,7 +450,7 @@ erDiagram
 
     PASSWORD_HISTORY {
         bigint id PK "主键，自增"
-        bigint credential_id FK "凭证 ID"
+        bigint credential_id "凭证 ID"
         blob password_encrypted "旧密码（加密）"
         blob iv "AES-GCM 初始化向量"
         datetime created_at "记录时间（即变更时间）"
@@ -458,7 +458,7 @@ erDiagram
 
     PASSWORD_RULE {
         bigint id PK "主键，自增"
-        bigint user_id FK "用户 ID"
+        bigint user_id "用户 ID"
         varchar rule_name "规则名称"
         int length "密码长度"
         tinyint include_uppercase "包含大写字母"
@@ -471,7 +471,7 @@ erDiagram
 
     MFA_CONFIG {
         bigint id PK "主键，自增"
-        bigint user_id FK "用户 ID"
+        bigint user_id "用户 ID"
         varchar totp_secret_encrypted "TOTP 密钥（加密存储）"
         tinyint enabled "是否启用"
         text recovery_codes_encrypted "恢复码（加密存储）"
@@ -514,8 +514,7 @@ CREATE TABLE pm_credential (
     created_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_pm_credential_user_id (user_id),
-    INDEX idx_pm_credential_tags (tags),
-    CONSTRAINT fk_credential_user FOREIGN KEY (user_id) REFERENCES pm_user(id)
+    INDEX idx_pm_credential_tags (tags)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='凭证表';
 ```
 
@@ -528,8 +527,7 @@ CREATE TABLE pm_password_history (
     password_encrypted BLOB     NOT NULL COMMENT '旧密码（加密）',
     iv                 BLOB     NOT NULL COMMENT 'AES-GCM IV',
     created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '变更时间',
-    INDEX idx_pm_password_history_credential_id (credential_id),
-    CONSTRAINT fk_history_credential FOREIGN KEY (credential_id) REFERENCES pm_credential(id) ON DELETE CASCADE
+    INDEX idx_pm_password_history_credential_id (credential_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='密码历史表';
 ```
 
@@ -547,8 +545,8 @@ CREATE TABLE pm_password_rule (
     include_special   TINYINT      NOT NULL DEFAULT 1 COMMENT '包含特殊字符',
     is_default        TINYINT      NOT NULL DEFAULT 0 COMMENT '是否默认规则',
     created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_pm_password_rule_user_id (user_id),
-    CONSTRAINT fk_rule_user FOREIGN KEY (user_id) REFERENCES pm_user(id)
+    updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_pm_password_rule_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='密码规则表';
 ```
 
@@ -563,8 +561,7 @@ CREATE TABLE pm_mfa_config (
     recovery_codes_encrypted TEXT         NULL COMMENT '恢复码（加密）',
     created_at               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE INDEX uk_pm_mfa_config_user_id (user_id),
-    CONSTRAINT fk_mfa_user FOREIGN KEY (user_id) REFERENCES pm_user(id)
+    UNIQUE INDEX uk_pm_mfa_config_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='MFA 配置表';
 ```
 

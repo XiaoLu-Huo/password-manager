@@ -6,19 +6,19 @@
 
 ## 任务
 
-- [ ] 1. 搭建后端项目基础设施
+- [-] 1. 搭建后端项目基础设施
   - [x] 1.1 初始化 Spring Boot 3 + Gradle 项目结构
     - 创建 Gradle 项目，配置 `build.gradle` 引入 Spring Boot 3、MyBatis-Plus、Bouncy Castle、jqwik、JUnit 5、Mockito、Lombok、MapStruct、SpringDoc OpenAPI、EasyExcel、java-totp 等依赖
     - 创建包结构：controller、service、service/impl、mapper、entity、dto/request、dto/response、config、exception、enums、util
     - 配置 `application.yml`（MySQL 数据源、MyBatis-Plus、服务端口等）
     - _需求: 全局基础设施_
 
-  - [ ] 1.2 创建 Flyway 数据库迁移脚本
+  - [x] 1.2 创建 Flyway 数据库迁移脚本
     - 编写 `V1__init_schema.sql`，包含 `pm_user`、`pm_credential`、`pm_password_history`、`pm_password_rule`、`pm_mfa_config` 五张表的 DDL
-    - 包含索引和外键约束定义
+    - 包含索引定义
     - _需求: 全局数据模型_
 
-  - [ ] 1.3 实现统一响应包装与全局异常处理
+  - [x] 1.3 实现统一响应包装与全局异常处理
     - 创建 `ApiResponse<T>` 统一响应类
     - 创建 `ErrorCode` 错误码枚举（包含所有错误码定义）
     - 创建 `BusinessException` 业务异常类
