@@ -23,4 +23,7 @@ public interface CredentialRepository {
     void updateById(Credential credential);
 
     void deleteById(Long id);
+
+    /** 按用户 ID 和账户名称查找凭证（用于导入冲突检测）。 */
+    List<Credential> findByUserIdAndAccountName(Long userId, String accountName);
 }

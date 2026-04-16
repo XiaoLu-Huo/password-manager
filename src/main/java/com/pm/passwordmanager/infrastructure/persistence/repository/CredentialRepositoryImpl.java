@@ -81,4 +81,13 @@ public class CredentialRepositoryImpl implements CredentialRepository {
     public void deleteById(Long id) {
         credentialMapper.deleteById(id);
     }
+
+    @Override
+    public List<Credential> findByUserIdAndAccountName(Long userId, String accountName) {
+        return credentialMapper.selectList(
+                new LambdaQueryWrapper<CredentialEntity>()
+                        .eq(CredentialEntity::getUserId, userId)
+                        .eq(CredentialEntity::getAccountName, accountName))
+                .stream().map(assembler::toDomain).collect(Collectors.toList());
+    }
 }

@@ -226,28 +226,28 @@
     - _需求: 6.1 ~ 6.5_
 
 - [ ] 10. 实现数据导入导出
-  - [ ] 10.1 实现 `ImportExportService` 及 `ImportExportServiceImpl`
+  - [x] 10.1 实现 `ImportExportService` 及 `ImportExportServiceImpl`
     - 实现导出：查询凭证 → 解密 → EasyExcel 写入 → Apache POI 加密保护
     - 实现导入：POI 解密 → EasyExcel 读取 → 冲突策略处理（覆盖/跳过/保留两者）→ 加密存储
     - 实现 `ExcelEncryptionUtil` 工具类
     - _需求: 7.1 ~ 7.7_
 
-  - [ ] 10.2 编写导入需要正确密码属性测试
+  - [x] 10.2 编写导入需要正确密码属性测试
     - **Property 15: 导入需要正确密码**
     - 验证：错误密码导入失败，正确密码导入成功
     - **验证需求: 7.4**
 
-  - [ ] 10.3 编写导入冲突策略属性测试
+  - [x] 10.3 编写导入冲突策略属性测试
     - **Property 16: 导入冲突策略**
     - 验证：覆盖替换旧数据、跳过保留旧数据、保留两者同时存在
     - **验证需求: 7.6**
 
-  - [ ] 10.4 编写 Excel 导出/导入往返一致性属性测试
+  - [x] 10.4 编写 Excel 导出/导入往返一致性属性测试
     - **Property 17: Excel 导出/导入往返一致性**
     - 验证：导出后再导入应产生与原始数据等价的凭证记录
     - **验证需求: 7.7**
 
-  - [ ] 10.5 实现 `ImportExportController`
+  - [x] 10.5 实现 `ImportExportController`
     - 实现 `POST /api/import-export/export`、`POST /api/import-export/import` 端点
     - _需求: 7.1 ~ 7.7_
 
