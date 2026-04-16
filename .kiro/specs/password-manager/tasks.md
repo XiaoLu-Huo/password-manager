@@ -252,7 +252,7 @@
     - _需求: 7.1 ~ 7.7_
 
 - [ ] 11. 实现设置模块
-  - [ ] 11.1 实现 `SettingsController`
+  - [x] 11.1 实现 `SettingsController`
     - 实现 `GET /api/settings`、`PUT /api/settings` 端点
     - 支持自动锁定超时时间配置（1-60 分钟）
     - _需求: 8.2_
