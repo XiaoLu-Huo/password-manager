@@ -53,7 +53,7 @@ docker run -d \
   -e MYSQL_CHARSET=utf8mb4 \
   -v pm-mysql-data:/var/lib/mysql \
   mysql:8.0 \
-  --character-set-name=utf8mb4 \
+  --character_set_server=utf8mb4 \
   --collation-server=utf8mb4_unicode_ci
 ```
 
