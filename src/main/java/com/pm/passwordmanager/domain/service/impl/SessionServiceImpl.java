@@ -17,7 +17,7 @@ import com.pm.passwordmanager.domain.service.SessionService;
 @Service
 public class SessionServiceImpl implements SessionService {
 
-    static final int DEFAULT_AUTO_LOCK_MINUTES = 5;
+    static final int DEFAULT_AUTO_LOCK_MINUTES = 15;
     static final int MIN_AUTO_LOCK_MINUTES = 1;
     static final int MAX_AUTO_LOCK_MINUTES = 60;
 

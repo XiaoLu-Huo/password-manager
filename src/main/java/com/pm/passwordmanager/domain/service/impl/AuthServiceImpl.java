@@ -70,7 +70,7 @@ public class AuthServiceImpl implements AuthService {
                 .salt(Base64.getEncoder().encodeToString(salt))
                 .encryptionKeyEncrypted(encryptedDekBlob)
                 .failedAttempts(0)
-                .autoLockMinutes(5)
+                .autoLockMinutes(15)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();

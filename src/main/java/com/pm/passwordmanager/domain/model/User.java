@@ -82,7 +82,9 @@ public class User {
     /** 检查账户是否处于锁定状态。 */
     public void checkLockStatus() {
         if (lockedUntil != null && LocalDateTime.now().isBefore(lockedUntil)) {
-            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
+            long remainingMinutes = java.time.Duration.between(LocalDateTime.now(), lockedUntil).toMinutes() + 1;
+            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED,
+                    "账户已锁定，请 " + remainingMinutes + " 分钟后再试");
         }
     }
 
