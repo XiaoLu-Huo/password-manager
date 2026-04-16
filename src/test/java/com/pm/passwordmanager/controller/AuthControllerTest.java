@@ -1,4 +1,4 @@
-package com.pm.passwordmanager.controller;
+package com.pm.passwordmanager.api.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -17,20 +17,20 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.pm.passwordmanager.dto.request.CreateMasterPasswordRequest;
-import com.pm.passwordmanager.dto.request.EnableMfaRequest;
-import com.pm.passwordmanager.dto.request.UnlockVaultRequest;
-import com.pm.passwordmanager.dto.request.VerifyTotpRequest;
-import com.pm.passwordmanager.dto.response.ApiResponse;
-import com.pm.passwordmanager.dto.response.MfaSetupResponse;
-import com.pm.passwordmanager.dto.response.UnlockResultResponse;
-import com.pm.passwordmanager.entity.UserEntity;
+import com.pm.passwordmanager.api.dto.request.CreateMasterPasswordRequest;
+import com.pm.passwordmanager.api.dto.request.EnableMfaRequest;
+import com.pm.passwordmanager.api.dto.request.UnlockVaultRequest;
+import com.pm.passwordmanager.api.dto.request.VerifyTotpRequest;
+import com.pm.passwordmanager.api.dto.response.ApiResponse;
+import com.pm.passwordmanager.api.dto.response.MfaSetupResponse;
+import com.pm.passwordmanager.api.dto.response.UnlockResultResponse;
+import com.pm.passwordmanager.infrastructure.persistence.entity.UserEntity;
 import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
-import com.pm.passwordmanager.mapper.UserMapper;
-import com.pm.passwordmanager.service.AuthService;
-import com.pm.passwordmanager.service.MfaService;
-import com.pm.passwordmanager.service.SessionService;
+import com.pm.passwordmanager.infrastructure.persistence.mapper.UserMapper;
+import com.pm.passwordmanager.domain.service.AuthService;
+import com.pm.passwordmanager.domain.service.MfaService;
+import com.pm.passwordmanager.domain.service.SessionService;
 
 @ExtendWith(MockitoExtension.class)
 class AuthControllerTest {

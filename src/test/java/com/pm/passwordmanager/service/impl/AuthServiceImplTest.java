@@ -1,4 +1,4 @@
-package com.pm.passwordmanager.service.impl;
+package com.pm.passwordmanager.domain.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -20,17 +20,17 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.pm.passwordmanager.dto.request.CreateMasterPasswordRequest;
-import com.pm.passwordmanager.dto.request.UnlockVaultRequest;
-import com.pm.passwordmanager.dto.response.UnlockResultResponse;
-import com.pm.passwordmanager.entity.UserEntity;
+import com.pm.passwordmanager.api.dto.request.CreateMasterPasswordRequest;
+import com.pm.passwordmanager.api.dto.request.UnlockVaultRequest;
+import com.pm.passwordmanager.api.dto.response.UnlockResultResponse;
+import com.pm.passwordmanager.infrastructure.persistence.entity.UserEntity;
 import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
-import com.pm.passwordmanager.mapper.UserMapper;
-import com.pm.passwordmanager.service.SessionService;
-import com.pm.passwordmanager.util.Argon2Hasher;
-import com.pm.passwordmanager.util.EncryptedData;
-import com.pm.passwordmanager.util.EncryptionEngine;
+import com.pm.passwordmanager.infrastructure.persistence.mapper.UserMapper;
+import com.pm.passwordmanager.domain.service.SessionService;
+import com.pm.passwordmanager.infrastructure.encryption.Argon2Hasher;
+import com.pm.passwordmanager.infrastructure.encryption.EncryptedData;
+import com.pm.passwordmanager.infrastructure.encryption.EncryptionEngine;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceImplTest {
@@ -44,7 +44,7 @@ class AuthServiceImplTest {
     @Mock
     private SessionService sessionService;
     @Mock
-    private com.pm.passwordmanager.service.MfaService mfaService;
+    private com.pm.passwordmanager.domain.service.MfaService mfaService;
 
     @InjectMocks
     private AuthServiceImpl authService;

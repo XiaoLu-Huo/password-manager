@@ -1,4 +1,4 @@
-package com.pm.passwordmanager.service.impl;
+package com.pm.passwordmanager.domain.service.impl;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -12,13 +12,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.pm.passwordmanager.dto.response.CredentialListResponse;
-import com.pm.passwordmanager.entity.CredentialEntity;
-import com.pm.passwordmanager.mapper.CredentialMapper;
-import com.pm.passwordmanager.mapper.PasswordHistoryMapper;
-import com.pm.passwordmanager.service.PasswordGeneratorService;
-import com.pm.passwordmanager.service.SessionService;
-import com.pm.passwordmanager.util.EncryptionEngine;
+import com.pm.passwordmanager.api.dto.response.CredentialListResponse;
+import com.pm.passwordmanager.infrastructure.persistence.entity.CredentialEntity;
+import com.pm.passwordmanager.infrastructure.persistence.mapper.CredentialMapper;
+import com.pm.passwordmanager.infrastructure.persistence.mapper.PasswordHistoryMapper;
+import com.pm.passwordmanager.domain.service.PasswordGeneratorService;
+import com.pm.passwordmanager.domain.service.SessionService;
+import com.pm.passwordmanager.infrastructure.encryption.EncryptionEngine;
 
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;

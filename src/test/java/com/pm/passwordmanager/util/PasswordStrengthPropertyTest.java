@@ -1,8 +1,8 @@
-package com.pm.passwordmanager.util;
+package com.pm.passwordmanager.infrastructure.encryption;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.pm.passwordmanager.enums.PasswordStrengthLevel;
+import com.pm.passwordmanager.api.enums.PasswordStrengthLevel;
 
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;

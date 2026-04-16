@@ -1,4 +1,4 @@
-package com.pm.passwordmanager.service.impl;
+package com.pm.passwordmanager.domain.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -12,16 +12,16 @@ import static org.mockito.Mockito.when;
 import java.time.LocalDateTime;
 import java.util.Base64;
 
-import com.pm.passwordmanager.dto.request.UnlockVaultRequest;
-import com.pm.passwordmanager.entity.UserEntity;
+import com.pm.passwordmanager.api.dto.request.UnlockVaultRequest;
+import com.pm.passwordmanager.infrastructure.persistence.entity.UserEntity;
 import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
-import com.pm.passwordmanager.mapper.UserMapper;
-import com.pm.passwordmanager.service.MfaService;
-import com.pm.passwordmanager.service.SessionService;
-import com.pm.passwordmanager.util.Argon2Hasher;
-import com.pm.passwordmanager.util.EncryptedData;
-import com.pm.passwordmanager.util.EncryptionEngine;
+import com.pm.passwordmanager.infrastructure.persistence.mapper.UserMapper;
+import com.pm.passwordmanager.domain.service.MfaService;
+import com.pm.passwordmanager.domain.service.SessionService;
+import com.pm.passwordmanager.infrastructure.encryption.Argon2Hasher;
+import com.pm.passwordmanager.infrastructure.encryption.EncryptedData;
+import com.pm.passwordmanager.infrastructure.encryption.EncryptionEngine;
 
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;

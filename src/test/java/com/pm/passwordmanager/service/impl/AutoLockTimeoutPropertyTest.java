@@ -1,4 +1,4 @@
-package com.pm.passwordmanager.service.impl;
+package com.pm.passwordmanager.domain.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

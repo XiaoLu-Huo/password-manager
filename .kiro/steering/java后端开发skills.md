@@ -1,610 +1,377 @@
 ---
-inclusion:manual/auto
+inclusion: auto
 ---
-# [项目名称] Java 后端开发规范
-
-> 使用说明：将此模板复制到新项目的 `.kiro/steering/` 目录下，替换所有 `[占位符]` 为项目实际值，
-
-> 删除不适用的章节，将 `inclusion` 改为 `auto` 即可生效。
-
-> 带有 `<!-- 可选 -->` 标记的章节可根据项目实际情况决定是否保留。
+# Password Manager Java 后端开发规范
 
 ## 1. 技术栈
 
-- Java [17/21], Spring Boot [x.x.x]
-- 构建工具：[Gradle x.x / Maven x.x]
-- ORM：[MyBatis Plus x.x / JPA / MyBatis x.x]
-- 数据库：[MySQL 8.0 / PostgreSQL x.x]，迁移工具：[Flyway / Liquibase]
-- 缓存：[Redisson x.x / Spring Data Redis]，本地缓存：[Caffeine / Guava Cache]
-- API 文档：[SpringDoc OpenAPI x.x / Swagger x.x]
-- 工具库：Lombok [x.x], MapStruct [x.x]
+- Java 17, Spring Boot 3.2.5
+- 构建工具：Gradle 8.x
+- ORM：MyBatis-Plus 3.5.6
+- 数据库：MySQL 8.0，迁移工具：Flyway 9.x
+- API 文档：SpringDoc OpenAPI 2.5.0
+- 工具库：Lombok 1.18.38, MapStruct 1.5.5
+- 加密：Bouncy Castle 1.78.1 (Argon2id), JCE (AES-256-GCM)
+- TOTP：java-totp 1.7.1
+- Excel：EasyExcel 3.3.4
+- 测试：JUnit 5 + Mockito 5.18 + AssertJ + jqwik 1.8.5（属性测试）
 
-<!-- 可选：微服务项目填写，单体项目删除此章节 -->
+## 2. DDD 四层架构
 
-## 2. 微服务架构
-
-### 2.1 服务清单
-
-| 服务 | 职责 |
-
-|------|------|
-
-| [service-name] | [职责描述] |
-
-| gateway | API 网关 |
-
-### 2.2 注册中心与配置中心
-
-- [Nacos x.x / Eureka / Consul / Kubernetes Service Discovery]
-
-### 2.3 服务间通信
-
-- 同步调用：[OpenFeign / RestTemplate / WebClient]
-- 异步消息：[RocketMQ / Kafka / RabbitMQ]，集成方式：[Spring Cloud Stream / 原生 SDK]
-
-### 2.4 共享库
-
--`commons`：[基础工具类、分页模型、异常基类等]
-
--`spring-commons`：[Spring 相关工具、Feign 配置、切面等]
-
--`xxx-service-api`：各服务对外暴露的接口和 DTO
-
-### 2.5 任务调度 `<!-- 可选 -->`
-
-- [XXL-Job / Spring Scheduler / Quartz]
-
-## 3. 分层架构
-
-<!-- 根据项目实际架构选择：DDD 四层 或 经典三层，删除不适用的方案 -->
-
-### 方案 A：DDD 四层架构
+### 2.1 包结构
 
 ```
-
-com.[company].[project].[module]/
-
-├── api/                          # 接口层（对外暴露）
-
-│   ├── controller/               # REST 控制器
-
-│   ├── dto/                      # 请求/响应 DTO
-
-│   │   ├── request/              # 请求对象 (XxxRequest)
-
-│   │   └── response/             # 响应对象 (XxxResponse)
-
-│   ├── enums/                    # API 层枚举
-
-│   └── mapper/                   # MapStruct DTO 映射接口
-
-├── domain/                       # 领域层（核心业务逻辑）
-
-│   ├── model/                    # 充血领域模型（包含业务行为）
-
-│   ├── service/                  # 领域服务
-
-│   ├── repository/               # 仓储接口（面向领域定义）
-
-│   ├── command/                  # 命令对象
-
-│   └── event/                    # 领域事件
-
-├── infrastructure/               # 基础设施层（技术实现）
-
-│   ├── repository/               # 仓储实现
-
-│   ├── entity/                   # 数据库实体
-
-│   ├── mapper/                   # ORM Mapper 接口
-
-│   ├── assembler/                # Entity ↔ Domain Model 转换器
-
-│   ├── client/                   # 外部服务调用
-
-│   ├── listener/                 # 事件监听器
-
-│   ├── message/                  # 消息处理
-
-│   ├── job/                      # 定时任务
-
-│   └── config/                   # 基础设施配置
-
-├── config/                       # 应用配置
-
-├── exception/                    # 异常定义
-
-└── util/                         # 工具类
-
+com.pm.passwordmanager/
+├── api/                              # 接口层（对外暴露）
+│   ├── controller/                   # REST 控制器
+│   ├── dto/                          # 请求/响应 DTO
+│   │   ├── request/                  # 请求对象 (XxxRequest)
+│   │   └── response/                 # 响应对象 (XxxResponse, ApiResponse)
+│   └── enums/                        # API 层枚举 (ConflictStrategy, PasswordStrengthLevel)
+├── domain/                           # 领域层（核心业务逻辑）
+│   ├── model/                        # 充血领域模型（包含业务行为）
+│   ├── service/                      # 领域服务接口 + 实现
+│   │   └── impl/                     # 领域服务实现
+│   └── repository/                   # 仓储接口（面向领域定义）
+├── infrastructure/                   # 基础设施层（技术实现）
+│   ├── persistence/                  # 持久化相关
+│   │   ├── entity/                   # 数据库实体 (XxxEntity)
+│   │   ├── mapper/                   # MyBatis-Plus Mapper 接口
+│   │   └── repository/              # 仓储实现 (XxxRepositoryImpl)
+│   ├── encryption/                   # 加密基础设施
+│   │   ├── EncryptionEngine.java     # AES-256-GCM 加密/解密
+│   │   ├── Argon2Hasher.java         # Argon2id 哈希
+│   │   └── SecureRandomUtil.java     # CSPRNG 工具
+│   ├── totp/                         # TOTP 基础设施
+│   │   └── TotpUtil.java             # TOTP 工具
+│   ├── excel/                        # Excel 基础设施
+│   │   └── ExcelEncryptionUtil.java  # Excel 加密/解密工具
+│   └── config/                       # 基础设施配置
+│       └── MyBatisPlusConfig.java    # MyBatis-Plus 配置
+├── config/                           # 应用级配置（跨域、安全等）
+├── exception/                        # 异常定义（全局共享）
+│   ├── ErrorCode.java                # 错误码枚举
+│   ├── BusinessException.java        # 统一业务异常
+│   └── GlobalExceptionHandler.java   # 全局异常处理器
+└── PasswordManagerApplication.java   # 启动类
 ```
 
-层间依赖规则：
+### 2.2 层间依赖规则
 
-- api → domain（允许）
-- domain → 不依赖任何其他层（纯业务逻辑）
-- infrastructure → domain（实现仓储接口，依赖反转）
+- `api` → `domain`（允许，Controller 调用领域服务）
+- `domain` → 不依赖 `api` 和 `infrastructure`（纯业务逻辑，通过仓储接口隔离）
+- `infrastructure` → `domain`（实现仓储接口，依赖反转）
+- `exception` 包全局共享，各层均可引用
 
-### 方案 B：经典三层架构
+### 2.3 领域划分
 
-```
+本项目按业务能力划分为以下领域：
 
-com.[company].[project].[module]/
+| 领域 | 领域模型 | 领域服务 | 仓储接口 |
+|------|----------|----------|----------|
+| 认证 | User | AuthService, SessionService, MfaService | UserRepository, MfaConfigRepository |
+| 凭证 | Credential | CredentialService | CredentialRepository |
+| 密码生成 | PasswordRule | PasswordGeneratorService | PasswordRuleRepository |
+| 密码历史 | PasswordHistory | PasswordHistoryService | PasswordHistoryRepository |
+| 安全报告 | （无独立模型） | SecurityReportService | （复用 CredentialRepository） |
+| 导入导出 | （无独立模型） | ImportExportService | （复用 CredentialRepository） |
+| 密码强度 | （无独立模型） | PasswordStrengthEvaluator | （无） |
 
-├── controller/                   # 控制器层
+## 3. 编码规范
 
-├── service/                      # 业务逻辑层
-
-│   └── impl/                     # 服务实现
-
-├── repository/ 或 dao/           # 数据访问层
-
-├── entity/                       # 数据库实体
-
-├── dto/                          # 数据传输对象
-
-├── config/                       # 配置类
-
-├── exception/                    # 异常定义
-
-└── util/                         # 工具类
-
-```
-
-## 4. 编码规范
-
-### 4.1 Controller 层
+### 3.1 Controller 层
 
 ```java
-
 @RestController
-
-@RequestMapping("[resources]")
-
+@RequestMapping("/api/credentials")
 @RequiredArgsConstructor
+@Tag(name = "凭证管理", description = "凭证 CRUD、搜索与标签筛选接口")
+public class CredentialController {
 
-@Tag(name = "[服务名称]")
-
-publicclass XxxController {
-
-
-privatefinalXxxServicexxxService;
-
-
-    @Operation(summary ="[操作描述]")
+    private final CredentialService credentialService;
+    private final UserMapper userMapper;
 
     @PostMapping
-
-publicPageResponse<XxxResponse> queryXxx(@Valid @RequestBodyXxxRequestrequest) {
-
-returnxxxService.queryXxx(request);
-
+    @Operation(summary = "创建凭证", description = "创建新凭证，支持自动生成密码")
+    public ApiResponse<CredentialResponse> create(@Valid @RequestBody CreateCredentialRequest request) {
+        Long userId = getCurrentUserId();
+        return ApiResponse.success(credentialService.createCredential(userId, request));
     }
-
 }
-
 ```
 
+规则：
 - 使用 `@RequiredArgsConstructor` 构造器注入，禁止 `@Autowired` 字段注入
 - 使用 `@Operation` + `@Tag` 生成 API 文档
 - 使用 `@Valid` / `@Validated` 进行参数校验
-- Controller 只做参数接收和结果返回，不包含业务逻辑
+- Controller 只做参数接收、用户身份获取和结果返回，不包含业务逻辑
+- 统一返回 `ApiResponse<T>` 包装
 
-### 4.2 领域模型（DDD 项目适用）
+### 3.2 领域模型
 
 ```java
-
 @Getter
-
-@SuperBuilder
-
+@Builder
 @NoArgsConstructor
+@AllArgsConstructor
+public class Credential {
 
-publicclass XxxModel {
+    private Long id;
+    private Long userId;
+    private String accountName;
+    private String username;
+    private byte[] passwordEncrypted;
+    private byte[] iv;
+    private String url;
+    private String notes;
+    private String tags;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
-privateLongid;
-
-privateStringname;
-
-
-    /** 业务行为封装在领域对象中. */
-
-publicvoidchangeStatus(StatusnewStatus) {
-
-// 状态校验与流转逻辑
-
+    /** 验证必填字段完整性。 */
+    public void validateRequiredFields(String plainPassword) {
+        if (isBlank(accountName) || isBlank(username) || isBlank(plainPassword)) {
+            throw new BusinessException(ErrorCode.CREDENTIAL_REQUIRED_FIELDS_MISSING);
+        }
     }
 
+    /** 检查标签是否包含指定值。 */
+    public boolean hasTag(String tag) {
+        if (tags == null || tag == null) return false;
+        return List.of(tags.split(",")).stream()
+                .map(String::trim)
+                .anyMatch(t -> t.equalsIgnoreCase(tag));
+    }
 }
-
 ```
 
-- 领域模型包含业务行为，不是贫血 POJO
-- 使用 `@SuperBuilder` 支持继承链的 Builder 模式
-- 聚合根负责管理子对象的一致性
+规则：
+- 领域模型包含业务行为（验证、状态流转等），不是贫血 POJO
+- 使用 `@Builder` 构建对象
+- 业务规则校验内聚在领域模型中
 
-### 4.3 仓储模式（DDD 项目适用）
+### 3.3 仓储模式
 
 ```java
-
 // domain/repository/ — 接口定义，面向领域模型
-
-publicinterface XxxRepository {
-
-Optional<Xxx> findById(Longid);
-
-Xxxsave(Xxxxxx);
-
+public interface CredentialRepository {
+    Credential save(Credential credential);
+    Optional<Credential> findById(Long id);
+    List<Credential> findByUserId(Long userId);
+    List<Credential> searchByKeyword(Long userId, String keyword);
+    List<Credential> filterByTag(Long userId, String tag);
+    void deleteById(Long id);
 }
 
-
-// infrastructure/repository/ — 实现，负责 Entity ↔ Domain Model 转换
-
+// infrastructure/persistence/repository/ — 实现
 @Repository
-
 @RequiredArgsConstructor
+public class CredentialRepositoryImpl implements CredentialRepository {
 
-publicclass XxxRepositoryImpl implements XxxRepository {
-
-privatefinalXxxMapperxxxMapper;
-
-privatefinalXxxAssemblerassembler;
-
+    private final CredentialMapper credentialMapper;
 
     @Override
-
-publicOptional<Xxx> findById(Longid) {
-
-returnOptional.ofNullable(xxxMapper.selectById(id)).map(assembler::toDomain);
-
+    public Optional<Credential> findById(Long id) {
+        return Optional.ofNullable(credentialMapper.selectById(id))
+                .map(this::toDomain);
     }
 
+    // Entity ↔ Domain Model 转换方法内聚在 RepositoryImpl 中
+    private Credential toDomain(CredentialEntity entity) { ... }
+    private CredentialEntity toEntity(Credential model) { ... }
 }
-
 ```
 
-### 4.4 数据库实体
+规则：
+- 仓储接口定义在 `domain/repository/`，面向领域模型
+- 仓储实现在 `infrastructure/persistence/repository/`，负责 Entity ↔ Domain Model 转换
+- 转换逻辑简单时直接在 RepositoryImpl 中用私有方法实现，复杂时可抽取 Assembler 类
 
-<!-- MyBatis Plus 方案 -->
+### 3.4 领域服务
 
 ```java
+// domain/service/ — 接口
+public interface CredentialService {
+    CredentialResponse createCredential(Long userId, CreateCredentialRequest request);
+    List<CredentialListResponse> listCredentials(Long userId);
+    // ...
+}
 
-@Getter
+// domain/service/impl/ — 实现
+@Service
+@RequiredArgsConstructor
+public class CredentialServiceImpl implements CredentialService {
 
-@Setter
+    private final CredentialRepository credentialRepository;
+    private final EncryptionEngine encryptionEngine;
+    private final SessionService sessionService;
 
+    @Override
+    @Transactional
+    public CredentialResponse createCredential(Long userId, CreateCredentialRequest request) {
+        // 编排领域模型和仓储
+    }
+}
+```
+
+规则：
+- 服务接口定义在 `domain/service/`，实现在 `domain/service/impl/`
+- 使用 `@Transactional` 管理事务，只在 Service 层标注
+- 领域服务编排领域模型、仓储和基础设施组件
+
+### 3.5 数据库实体
+
+```java
+@Data
 @Builder
-
 @NoArgsConstructor
-
 @AllArgsConstructor
+@TableName("credential")
+public class CredentialEntity {
 
-@TableName("[table_name]")
+    @TableId(type = IdType.AUTO)
+    private Long id;
 
-publicclass XxxEntity {
+    @TableField("user_id")
+    private Long userId;
 
-    @TableId(type =IdType.AUTO)
+    @TableField("account_name")
+    private String accountName;
 
-privateLongid;
-
-
-    @TableField("[column_name]")
-
-privateStringfieldName;
-
+    // ...
 }
-
 ```
 
-<!-- JPA 方案（二选一） -->
+规则：
+- 实体使用 `@Data` + `@Builder` + `@NoArgsConstructor` + `@AllArgsConstructor`
+- 使用 `@TableName` 指定表名（不含 `pm_` 前缀，由 MyBatis-Plus 全局配置 `table-prefix: pm_` 自动添加）
+- 使用 `@TableField` 显式映射列名
+- 实体是纯数据载体，不包含业务逻辑
+
+### 3.6 MyBatis-Plus Mapper
 
 ```java
-
-@Entity
-
-@Table(name = "[table_name]")
-
-@Getter
-
-@Setter
-
-@NoArgsConstructor
-
-publicclass XxxEntity {
-
-    @Id
-
-    @GeneratedValue(strategy =GenerationType.IDENTITY)
-
-privateLongid;
-
-
-    @Column(name ="[column_name]")
-
-privateStringfieldName;
-
+@Mapper
+public interface CredentialMapper extends BaseMapper<CredentialEntity> {
 }
-
 ```
 
-### 4.5 DTO 映射（MapStruct）
+规则：
+- 继承 `BaseMapper<T>`，利用 MyBatis-Plus 内置 CRUD
+- 复杂查询使用 `LambdaQueryWrapper` 在仓储实现中构建
+- Mapper XML 放在 `classpath:/mapper/` 下（仅在需要复杂 SQL 时使用）
+
+### 3.7 异常处理
 
 ```java
-
-@Mapper(componentModel = "spring")
-
-publicinterface XxxDtoMapper {
-
-XxxResponsetoResponse(XxxModelmodel);
-
-XxxModeltoDomain(XxxRequestrequest);
-
-}
-
+// 抛出业务异常
+throw new BusinessException(ErrorCode.CREDENTIAL_NOT_FOUND);
+throw new BusinessException(ErrorCode.SAME_PASSWORD);
 ```
 
-### 4.6 领域事件（DDD 项目适用） `<!-- 可选 -->`
+规则：
+- 错误码集中定义在 `exception/ErrorCode.java`，按模块分段编号
+- 通过 `GlobalExceptionHandler`（`@RestControllerAdvice`）统一捕获并返回 `ApiResponse`
+- 不在 Controller 中 try-catch 业务异常
 
-```java
-
-publicclass XxxCreatedEvent {
-
-privatefinalLongid;
-
-
-publicstaticXxxCreatedEventof(Xxxxxx) {
-
-returnnewXxxCreatedEvent(xxx.getId());
-
-    }
-
-}
-
-```
-
-- 提供静态工厂方法创建事件
-- 事件监听器放在 `infrastructure/listener/`
-
-### 4.7 异常处理
-
-```java
-
-// 统一业务异常
-
-thrownewBusinessException(ErrorCode.NOT_FOUND, "资源未找到");
-
-thrownewBusinessException(ErrorCode.INVALID_REQUEST, "参数无效", extraData);
-
-```
-
-- 错误码集中定义在 `exception/ErrorCode.java`
-- 通过全局异常处理器 `@RestControllerAdvice` 统一返回格式
-- 领域特定异常可单独定义，继承统一基类
-
-### 4.8 命名规范
+### 3.8 命名规范
 
 | 类型 | 后缀 | 位置 | 示例 |
-
 |------|------|------|------|
+| 控制器 | Controller | api/controller/ | CredentialController |
+| 请求 DTO | Request | api/dto/request/ | CreateCredentialRequest |
+| 响应 DTO | Response | api/dto/response/ | CredentialResponse |
+| 统一响应 | ApiResponse | api/dto/response/ | ApiResponse\<T\> |
+| 领域模型 | 业务名称（无后缀） | domain/model/ | Credential, User |
+| 领域服务接口 | Service | domain/service/ | CredentialService |
+| 领域服务实现 | ServiceImpl | domain/service/impl/ | CredentialServiceImpl |
+| 仓储接口 | Repository | domain/repository/ | CredentialRepository |
+| 仓储实现 | RepositoryImpl | infrastructure/persistence/repository/ | CredentialRepositoryImpl |
+| 数据库实体 | Entity | infrastructure/persistence/entity/ | CredentialEntity |
+| ORM Mapper | Mapper | infrastructure/persistence/mapper/ | CredentialMapper |
+| 加密工具 | （按职责命名） | infrastructure/encryption/ | EncryptionEngine, Argon2Hasher |
+| 枚举 | （按业务命名） | api/enums/ | ConflictStrategy, PasswordStrengthLevel |
 
-| 控制器 | Controller | [api/]controller/ | OrderController |
+### 3.9 通用编码原则
 
-| 请求 DTO | Request | [api/]dto/request/ | CreateOrderRequest |
-
-| 响应 DTO | Response | [api/]dto/response/ | OrderDetailResponse |
-
-| 领域模型 | 业务名称（无后缀） | domain/model/ | Order, Product |
-
-| 服务类 | Service | [domain/]service/ | OrderService |
-
-| 服务实现 | ServiceImpl | service/impl/ | OrderServiceImpl（三层架构） |
-
-| 仓储接口 | Repository | [domain/]repository/ | OrderRepository |
-
-| 仓储实现 | RepositoryImpl | infrastructure/repository/ | OrderRepositoryImpl |
-
-| 数据库实体 | Entity | [infrastructure/]entity/ | OrderEntity |
-
-| ORM Mapper | Mapper | [infrastructure/]mapper/ | OrderMapper |
-
-| 对象转换器 | Assembler / DtoMapper | assembler/ 或 mapper/ | OrderAssembler |
-
-| 领域事件 | Event | domain/event/ | OrderCreatedEvent |
-
-| 定时任务 | Job / Handler | [infrastructure/]job/ | DataSyncJob |
-
-| Feign 客户端 | Client | [infrastructure/]client/ | UserServiceClient |
-
-### 4.9 通用编码原则
-
-- 使用 `final` 修饰不可变字段和局部变量
+- 使用 `@RequiredArgsConstructor` + `private final` 进行构造器注入
 - 使用 `Optional` 处理可能为 null 的返回值，禁止返回 null 集合（返回空集合）
 - 使用 `@Slf4j` 记录日志，按 info/warn/error 分级
-- 使用 `@Transactional` 管理事务，只在 Service 层标注，避免在 Controller 层使用
 - 集合操作优先使用 Stream API
 - 禁止在循环中进行数据库查询（N+1 问题）
+- 密码和密钥相关数据使用 `byte[]` 传递，避免不必要的 String 转换
 
-## 5. 注释规范
+## 4. 注释规范
 
-- 注释语言：[中文 / 英文]
-- 类注释：`/** 类功能描述. */`
-- 字段注释：`/** 字段描述. */`
+- 注释语言：中文
+- 类注释：`/** 类功能描述。 */`
 - public 方法注释：
 
 ```java
-
 /**
-
-* 方法功能描述.
-
-* @param paramName 参数描述
-
-* @return 返回值描述
-
-* @throws XxxException 异常描述
-
-*/
-
+ * 方法功能描述。
+ *
+ * @param paramName 参数描述
+ * @return 返回值描述
+ */
 ```
 
 - 标记注释：`TODO`（待办）/ `FIXME`（缺陷）/ `NOTE`（重要说明）
-- 避免无意义注释，复杂逻辑需详细说明
+- 避免无意义注释，复杂业务逻辑和加密流程需详细说明
 
-## 6. 数据库规范
+## 5. 数据库规范
 
-- 表名使用 snake_case
-- 主键字段 `id`，[bigint 自增 / UUID / 雪花算法]
-- 审计字段：`created_by`, `created_at`, `updated_by`, `updated_at`
-- 逻辑删除：[enable_flag (tinyint 1/0) / is_deleted (boolean) / deleted_at (datetime)]
-- 数据库迁移：[Flyway / Liquibase]，脚本路径 `src/main/resources/db/migration/`
-- 索引命名：`idx_[表名]_[字段名]`，唯一索引：`uk_[表名]_[字段名]`
-- 禁止使用 `SELECT *`，明确指定查询字段
-- 大表查询必须走索引，避免全表扫描
+- 表名使用 snake_case，统一前缀 `pm_`（由 MyBatis-Plus `table-prefix` 配置）
+- 主键字段 `id`，bigint 自增
+- 审计字段：`created_at`, `updated_at`（使用 MySQL `DEFAULT CURRENT_TIMESTAMP` 和 `ON UPDATE CURRENT_TIMESTAMP`）
+- 数据库迁移：Flyway，脚本路径 `src/main/resources/db/migration/`，命名 `V{n}__{description}.sql`
+- 索引命名：`idx_pm_{表名}_{字段名}`，唯一索引：`uk_pm_{表名}_{字段名}`
+- 字符集：`utf8mb4`，引擎：`InnoDB`
+- 加密字段使用 `BLOB` 类型存储
 
-## 7. 服务间调用规范 `<!-- 可选：微服务项目填写 -->`
+## 6. 安全规范
 
-### 7.1 Feign 接口定义
+- 主密码使用 Argon2id 哈希存储，不存储明文
+- 凭证密码使用 AES-256-GCM 加密，每条凭证独立 IV
+- 采用 KEK/DEK 两层密钥架构：KEK 由主密码派生，DEK 随机生成
+- DEK 仅在会话期间存于内存，锁定时立即清除
+- 使用 `java.security.SecureRandom` 生成所有随机数
+- 密码比较使用常量时间算法，防止时序攻击
+- SQL 注入防护：使用 MyBatis-Plus 参数化查询，禁止字符串拼接 SQL
 
-```java
+## 7. 构建与测试
 
-@FeignClient(name = "[service-name]", path = "/[base-path]")
-
-publicinterface XxxServiceApi {
-
-    @PostMapping("/[endpoint]")
-
-ApiResponse<XxxDto> getXxx(@RequestBodyXxxRequestrequest);
-
-}
-
-```
-
-### 7.2 依赖版本管理
-
-- 各服务 api 模块版本在 [dependency-management.gradle / pom.xml parent] 中统一管理
-- 版本变量定义在 [gradle.properties / pom.xml properties]
-
-### 7.3 调用原则
-
-- 服务间调用必须设置超时和重试策略
-- 关键调用添加熔断降级（[Resilience4j / Sentinel]）
-- 跨服务数据一致性通过 [Saga / 本地消息表 / 事务消息] 保证
-
-## 8. 安全规范
-
-- 敏感配置（数据库密码、API Key）通过 [环境变量 / 配置中心 / Vault] 管理，禁止硬编码
-- API 认证：[JWT / OAuth2 / Session]
-- 接口权限控制：[Spring Security / 自定义注解 + AOP]
-- SQL 注入防护：使用参数化查询，禁止字符串拼接 SQL
-- XSS 防护：输入参数校验和输出编码
-- 敏感数据（手机号、身份证等）日志脱敏
-
-## 9. 构建与质量
-
-### 9.1 构建命令
-
-<!-- Gradle 方案 -->
+### 7.1 构建命令
 
 ```shell
-
-./gradlewcheck# 运行所有检查
-
-./gradlewtest# 单元测试
-
-./gradlewintegrationTest# 集成测试
-
-./gradlewspotlessApply# 自动格式化
-
+./gradlew compileJava       # 编译
+./gradlew test              # 运行所有测试（JUnit 5 + jqwik）
+./gradlew build             # 完整构建
 ```
 
-<!-- Maven 方案（二选一） -->
-
-```shell
-
-mvnverify# 运行所有检查
-
-mvntest# 单元测试
-
-mvnfailsafe:integration-test# 集成测试
-
-```
-
-### 9.2 质量门禁
-
-- 静态分析：[PMD / SpotBugs / SonarQube]
-- 代码风格：[Checkstyle / Spotless]
-- 代码覆盖率：[Jacoco]，最低覆盖率 [xx]%
-- Git Hooks：提交前自动检查
-
-### 9.3 测试规范
+### 7.2 测试规范
 
 - 单元测试：JUnit 5 + Mockito + AssertJ
-- 集成测试：[Testcontainers / H2 / MariaDB4j] 嵌入式数据库
+- 属性测试：jqwik 1.8.5，每个属性最少 100 次迭代
 - 测试命名：`should_[预期行为]_when_[条件]`
-- 测试结构：Given-When-Then 或 Arrange-Act-Assert
+- 属性测试标签：`@Label("Feature: password-manager, Property {N}: {描述}")`
+- 测试目录结构镜像源码结构：
+  - `src/test/java/com/pm/passwordmanager/util/` — 工具类测试
+  - `src/test/java/com/pm/passwordmanager/service/impl/` — 服务层测试（含属性测试）
+  - `src/test/java/com/pm/passwordmanager/controller/` — 控制器测试
+- 属性测试使用 `@Property(tries = 100)` + `@Provide` 自定义生成器
+- 测试引擎配置：`useJUnitPlatform { includeEngines 'junit-jupiter', 'jqwik' }`
 
-## 10. Git 提交规范
+## 8. 新增功能开发检查清单
 
-格式：`[commitType]: [TICKET-ID] commitMessage`
-
-commitType 可选值：
-
--`feat`：新功能
-
--`fix`：修复缺陷
-
--`refactor`：重构（不改变行为）
-
--`docs`：文档变更
-
--`test`：测试相关
-
--`chore`：构建/工具变更
-
--`style`：代码格式（不影响逻辑）
-
-示例：
-
--`feat: [PROJ-123] add order export functionality`
-
--`fix: [PROJ-456] fix null pointer in payment callback`
-
-## 11. 新增功能开发检查清单
-
-<!-- DDD 架构版本 -->
-
-1. 在 `domain/model/` 创建或修改充血领域模型，业务逻辑内聚在模型中
+1. 在 `domain/model/` 创建或修改充血领域模型，业务规则内聚在模型中
 2. 在 `domain/repository/` 定义仓储接口
-3. 在 `domain/service/` 编写领域服务，编排领域模型和仓储
-4. 在 `infrastructure/entity/` 创建数据库实体
-5. 在 `infrastructure/mapper/` 创建 ORM Mapper
-6. 在 `infrastructure/assembler/` 创建 Entity ↔ Domain Model 转换器
-7. 在 `infrastructure/repository/` 实现仓储接口
-8. 在 `api/dto/` 定义请求/响应 DTO
-9. 在 `api/mapper/` 创建 MapStruct DTO 映射
-10. 在 `api/controller/` 创建 Controller
-11. 如需异步处理，在 `domain/event/` 定义领域事件，在 `infrastructure/listener/` 实现监听
-12. 如需定时任务，在 `infrastructure/job/` 创建任务 Handler
-13. 如需调用其他服务，引入对应 `xxx-service-api` 依赖
-14. 数据库变更通过迁移脚本管理
-15. 错误码在 `exception/ErrorCode.java` 中新增常量
-16. 编写单元测试，确保核心逻辑覆盖
-
-<!-- 三层架构版本（二选一）
-
-1. 在 `entity/` 创建数据库实体
-
-2. 在 `repository/` 或 `dao/` 创建数据访问接口
-
-3. 在 `service/` 定义服务接口，在 `service/impl/` 编写实现
-
-4. 在 `dto/` 定义请求/响应 DTO
-
-5. 在 `controller/` 创建 Controller
-
-6. 数据库变更通过迁移脚本管理
-
-7. 错误码在 `exception/ErrorCode.java` 中新增常量
-
-8. 编写单元测试
-
--->
+3. 在 `domain/service/` 定义领域服务接口，在 `domain/service/impl/` 编写实现
+4. 在 `infrastructure/persistence/entity/` 创建数据库实体
+5. 在 `infrastructure/persistence/mapper/` 创建 MyBatis-Plus Mapper
+6. 在 `infrastructure/persistence/repository/` 实现仓储接口（含 Entity ↔ Domain Model 转换）
+7. 在 `api/dto/request/` 和 `api/dto/response/` 定义请求/响应 DTO
+8. 在 `api/controller/` 创建 Controller
+9. 数据库变更通过 Flyway 迁移脚本管理
+10. 错误码在 `exception/ErrorCode.java` 中新增常量
+11. 编写属性测试验证核心正确性属性，编写单元测试覆盖边界条件

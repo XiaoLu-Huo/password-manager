@@ -1,10 +1,10 @@
-package com.pm.passwordmanager.util;
+package com.pm.passwordmanager.infrastructure.encryption;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.pm.passwordmanager.enums.PasswordStrengthLevel;
+import com.pm.passwordmanager.api.enums.PasswordStrengthLevel;
 
 class PasswordStrengthEvaluatorTest {
 

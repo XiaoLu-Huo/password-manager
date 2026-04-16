@@ -1,6 +1,6 @@
 package com.pm.passwordmanager.exception;
 
-import com.pm.passwordmanager.dto.response.ApiResponse;
+import com.pm.passwordmanager.api.dto.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;

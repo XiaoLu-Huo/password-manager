@@ -1,4 +1,4 @@
-package com.pm.passwordmanager.service.impl;
+package com.pm.passwordmanager.domain.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -8,10 +8,10 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.pm.passwordmanager.entity.PasswordRuleEntity;
-import com.pm.passwordmanager.mapper.PasswordRuleMapper;
-import com.pm.passwordmanager.util.PasswordStrengthEvaluator;
-import com.pm.passwordmanager.util.SecureRandomUtil;
+import com.pm.passwordmanager.infrastructure.persistence.entity.PasswordRuleEntity;
+import com.pm.passwordmanager.infrastructure.persistence.mapper.PasswordRuleMapper;
+import com.pm.passwordmanager.infrastructure.encryption.PasswordStrengthEvaluator;
+import com.pm.passwordmanager.infrastructure.encryption.SecureRandomUtil;
 
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
