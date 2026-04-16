@@ -6,14 +6,13 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.pm.passwordmanager.api.dto.request.GeneratePasswordRequest;
 import com.pm.passwordmanager.api.dto.response.GeneratedPasswordResponse;
-import com.pm.passwordmanager.infrastructure.persistence.entity.PasswordRuleEntity;
+import com.pm.passwordmanager.domain.model.PasswordRule;
+import com.pm.passwordmanager.domain.repository.PasswordRuleRepository;
+import com.pm.passwordmanager.domain.service.PasswordGeneratorService;
 import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.PasswordRuleMapper;
-import com.pm.passwordmanager.domain.service.PasswordGeneratorService;
 import com.pm.passwordmanager.infrastructure.encryption.PasswordStrengthEvaluator;
 import com.pm.passwordmanager.infrastructure.encryption.SecureRandomUtil;
 
@@ -31,7 +30,7 @@ public class PasswordGeneratorServiceImpl implements PasswordGeneratorService {
 
     private final SecureRandomUtil secureRandomUtil;
     private final PasswordStrengthEvaluator passwordStrengthEvaluator;
-    private final PasswordRuleMapper passwordRuleMapper;
+    private final PasswordRuleRepository passwordRuleRepository;
 
     @Override
     public GeneratedPasswordResponse generatePassword(GeneratePasswordRequest request) {
@@ -42,14 +41,12 @@ public class PasswordGeneratorServiceImpl implements PasswordGeneratorService {
         boolean includeSpecial;
 
         if (Boolean.TRUE.equals(request.getUseDefault())) {
-            // 默认规则：16位，含所有字符类型
             length = DEFAULT_LENGTH;
             includeUppercase = true;
             includeLowercase = true;
             includeDigits = true;
             includeSpecial = true;
         } else {
-            // 自定义规则
             length = request.getLength() != null ? request.getLength() : DEFAULT_LENGTH;
             includeUppercase = Boolean.TRUE.equals(request.getIncludeUppercase());
             includeLowercase = Boolean.TRUE.equals(request.getIncludeLowercase());
@@ -57,10 +54,8 @@ public class PasswordGeneratorServiceImpl implements PasswordGeneratorService {
             includeSpecial = Boolean.TRUE.equals(request.getIncludeSpecial());
         }
 
-        // 输入验证
         validateGenerationParams(length, includeUppercase, includeLowercase, includeDigits, includeSpecial);
 
-        // 生成密码
         String password = doGenerate(length, includeUppercase, includeLowercase, includeDigits, includeSpecial);
 
         return GeneratedPasswordResponse.builder()
@@ -70,28 +65,26 @@ public class PasswordGeneratorServiceImpl implements PasswordGeneratorService {
     }
 
     @Override
-    public PasswordRuleEntity saveRule(Long userId, PasswordRuleEntity rule) {
+    public PasswordRule saveRule(Long userId, PasswordRule rule) {
         rule.setUserId(userId);
-        passwordRuleMapper.insert(rule);
-        return rule;
+        return passwordRuleRepository.save(rule);
     }
 
     @Override
-    public List<PasswordRuleEntity> getRulesByUserId(Long userId) {
-        LambdaQueryWrapper<PasswordRuleEntity> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(PasswordRuleEntity::getUserId, userId)
-               .orderByDesc(PasswordRuleEntity::getCreatedAt);
-        return passwordRuleMapper.selectList(wrapper);
+    public List<PasswordRule> getRulesByUserId(Long userId) {
+        return passwordRuleRepository.findByUserId(userId);
     }
 
     @Override
-    public PasswordRuleEntity getRuleById(Long ruleId) {
-        return passwordRuleMapper.selectById(ruleId);
+    public PasswordRule getRuleById(Long ruleId) {
+        return passwordRuleRepository.findById(ruleId).orElse(null);
     }
 
-    /**
-     * 验证密码生成参数。
-     */
+    @Override
+    public void deleteRule(Long ruleId) {
+        passwordRuleRepository.deleteById(ruleId);
+    }
+
     private void validateGenerationParams(int length, boolean upper, boolean lower, boolean digits, boolean special) {
         if (length < 8) {
             throw new BusinessException(ErrorCode.PASSWORD_LENGTH_TOO_SHORT);
@@ -104,11 +97,7 @@ public class PasswordGeneratorServiceImpl implements PasswordGeneratorService {
         }
     }
 
-    /**
-     * 使用 CSPRNG 生成密码，确保每种启用的字符类型至少包含一个字符。
-     */
     private String doGenerate(int length, boolean upper, boolean lower, boolean digits, boolean special) {
-        // 构建字符池
         StringBuilder poolBuilder = new StringBuilder();
         List<String> enabledPools = new ArrayList<>();
 
@@ -131,18 +120,15 @@ public class PasswordGeneratorServiceImpl implements PasswordGeneratorService {
 
         String pool = poolBuilder.toString();
 
-        // 先从每种启用类型中各取一个字符，保证每种类型至少出现一次
         List<Character> passwordChars = new ArrayList<>(length);
         for (String enabledPool : enabledPools) {
             passwordChars.add(enabledPool.charAt(secureRandomUtil.generateRandomInt(enabledPool.length())));
         }
 
-        // 剩余位置从完整字符池中随机选取
         for (int i = passwordChars.size(); i < length; i++) {
             passwordChars.add(pool.charAt(secureRandomUtil.generateRandomInt(pool.length())));
         }
 
-        // 使用 Fisher-Yates 洗牌打乱顺序，避免前几位总是固定类型
         for (int i = passwordChars.size() - 1; i > 0; i--) {
             int j = secureRandomUtil.generateRandomInt(i + 1);
             Collections.swap(passwordChars, i, j);

@@ -4,7 +4,7 @@ import java.util.List;
 
 import com.pm.passwordmanager.api.dto.request.GeneratePasswordRequest;
 import com.pm.passwordmanager.api.dto.response.GeneratedPasswordResponse;
-import com.pm.passwordmanager.infrastructure.persistence.entity.PasswordRuleEntity;
+import com.pm.passwordmanager.domain.model.PasswordRule;
 
 /**
  * 密码生成器服务接口。
@@ -25,10 +25,10 @@ public interface PasswordGeneratorService {
      * 保存自定义密码规则。
      *
      * @param userId 用户 ID
-     * @param rule   密码规则实体
-     * @return 保存后的规则实体（含 ID）
+     * @param rule   密码规则领域模型
+     * @return 保存后的规则（含 ID）
      */
-    PasswordRuleEntity saveRule(Long userId, PasswordRuleEntity rule);
+    PasswordRule saveRule(Long userId, PasswordRule rule);
 
     /**
      * 查询用户的所有密码规则。
@@ -36,13 +36,20 @@ public interface PasswordGeneratorService {
      * @param userId 用户 ID
      * @return 密码规则列表
      */
-    List<PasswordRuleEntity> getRulesByUserId(Long userId);
+    List<PasswordRule> getRulesByUserId(Long userId);
 
     /**
      * 根据 ID 查询密码规则。
      *
      * @param ruleId 规则 ID
-     * @return 密码规则实体
+     * @return 密码规则领域模型
      */
-    PasswordRuleEntity getRuleById(Long ruleId);
+    PasswordRule getRuleById(Long ruleId);
+
+    /**
+     * 根据 ID 删除密码规则。
+     *
+     * @param ruleId 规则 ID
+     */
+    void deleteRule(Long ruleId);
 }

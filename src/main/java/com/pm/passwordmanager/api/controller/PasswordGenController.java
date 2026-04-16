@@ -14,12 +14,8 @@ import com.pm.passwordmanager.api.dto.request.GeneratePasswordRequest;
 import com.pm.passwordmanager.api.dto.response.ApiResponse;
 import com.pm.passwordmanager.api.dto.response.GeneratedPasswordResponse;
 import com.pm.passwordmanager.api.dto.response.PasswordStrengthResponse;
-import com.pm.passwordmanager.infrastructure.persistence.entity.PasswordRuleEntity;
-import com.pm.passwordmanager.infrastructure.persistence.entity.UserEntity;
-import com.pm.passwordmanager.exception.BusinessException;
-import com.pm.passwordmanager.exception.ErrorCode;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.PasswordRuleMapper;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.UserMapper;
+import com.pm.passwordmanager.domain.model.PasswordRule;
+import com.pm.passwordmanager.domain.service.AuthService;
 import com.pm.passwordmanager.domain.service.PasswordGeneratorService;
 import com.pm.passwordmanager.infrastructure.encryption.PasswordStrengthEvaluator;
 
@@ -40,60 +36,43 @@ public class PasswordGenController {
 
     private final PasswordGeneratorService passwordGeneratorService;
     private final PasswordStrengthEvaluator passwordStrengthEvaluator;
-    private final PasswordRuleMapper passwordRuleMapper;
-    private final UserMapper userMapper;
+    private final AuthService authService;
 
     @PostMapping("/generate")
-    @Operation(summary = "生成密码", description = "根据默认规则或自定义规则生成随机密码")
+    @Operation(summary = "生成密码")
     public ApiResponse<GeneratedPasswordResponse> generate(@Valid @RequestBody GeneratePasswordRequest request) {
-        GeneratedPasswordResponse response = passwordGeneratorService.generatePassword(request);
-        return ApiResponse.success(response);
+        return ApiResponse.success(passwordGeneratorService.generatePassword(request));
     }
 
     @PostMapping("/evaluate")
-    @Operation(summary = "评估密码强度", description = "评估给定密码的强度等级")
+    @Operation(summary = "评估密码强度")
     public ApiResponse<PasswordStrengthResponse> evaluate(@RequestBody String password) {
-        PasswordStrengthResponse response = PasswordStrengthResponse.builder()
-                .strengthLevel(passwordStrengthEvaluator.evaluate(password))
-                .build();
-        return ApiResponse.success(response);
+        return ApiResponse.success(PasswordStrengthResponse.builder()
+                .strengthLevel(passwordStrengthEvaluator.evaluate(password)).build());
     }
 
     @GetMapping("/rules")
-    @Operation(summary = "查询密码规则列表", description = "获取当前用户的所有密码规则")
-    public ApiResponse<List<PasswordRuleEntity>> listRules() {
-        Long userId = getCurrentUserId();
-        List<PasswordRuleEntity> rules = passwordGeneratorService.getRulesByUserId(userId);
-        return ApiResponse.success(rules);
+    @Operation(summary = "查询密码规则列表")
+    public ApiResponse<List<PasswordRule>> listRules() {
+        return ApiResponse.success(passwordGeneratorService.getRulesByUserId(authService.getCurrentUserId()));
     }
 
     @GetMapping("/rules/{id}")
-    @Operation(summary = "查询密码规则详情", description = "根据 ID 获取密码规则")
-    public ApiResponse<PasswordRuleEntity> getRule(@PathVariable Long id) {
-        PasswordRuleEntity rule = passwordGeneratorService.getRuleById(id);
-        return ApiResponse.success(rule);
+    @Operation(summary = "查询密码规则详情")
+    public ApiResponse<PasswordRule> getRule(@PathVariable Long id) {
+        return ApiResponse.success(passwordGeneratorService.getRuleById(id));
     }
 
     @PostMapping("/rules")
-    @Operation(summary = "保存密码规则", description = "保存自定义密码规则以便后续复用")
-    public ApiResponse<PasswordRuleEntity> saveRule(@RequestBody PasswordRuleEntity rule) {
-        Long userId = getCurrentUserId();
-        PasswordRuleEntity saved = passwordGeneratorService.saveRule(userId, rule);
-        return ApiResponse.success(saved);
+    @Operation(summary = "保存密码规则")
+    public ApiResponse<PasswordRule> saveRule(@RequestBody PasswordRule rule) {
+        return ApiResponse.success(passwordGeneratorService.saveRule(authService.getCurrentUserId(), rule));
     }
 
     @DeleteMapping("/rules/{id}")
-    @Operation(summary = "删除密码规则", description = "根据 ID 删除密码规则")
+    @Operation(summary = "删除密码规则")
     public ApiResponse<Void> deleteRule(@PathVariable Long id) {
-        passwordRuleMapper.deleteById(id);
+        passwordGeneratorService.deleteRule(id);
         return ApiResponse.success();
-    }
-
-    private Long getCurrentUserId() {
-        UserEntity user = userMapper.selectOne(null);
-        if (user == null) {
-            throw new BusinessException(ErrorCode.VAULT_LOCKED);
-        }
-        return user.getId();
     }
 }

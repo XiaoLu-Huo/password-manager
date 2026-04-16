@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,10 +24,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.pm.passwordmanager.api.dto.request.CreateMasterPasswordRequest;
 import com.pm.passwordmanager.api.dto.request.UnlockVaultRequest;
 import com.pm.passwordmanager.api.dto.response.UnlockResultResponse;
-import com.pm.passwordmanager.infrastructure.persistence.entity.UserEntity;
+import com.pm.passwordmanager.domain.model.User;
+import com.pm.passwordmanager.domain.repository.UserRepository;
 import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.UserMapper;
 import com.pm.passwordmanager.domain.service.SessionService;
 import com.pm.passwordmanager.infrastructure.encryption.Argon2Hasher;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptedData;
@@ -36,7 +37,7 @@ import com.pm.passwordmanager.infrastructure.encryption.EncryptionEngine;
 class AuthServiceImplTest {
 
     @Mock
-    private UserMapper userMapper;
+    private UserRepository userRepository;
     @Mock
     private Argon2Hasher argon2Hasher;
     @Mock
@@ -59,7 +60,7 @@ class AuthServiceImplTest {
         testSalt = new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
         testDek = new byte[32];
         testKek = new byte[32];
-        testPasswordHash = "dGVzdEhhc2g="; // base64 of "testHash"
+        testPasswordHash = "dGVzdEhhc2g=";
     }
 
     // ========== setup tests ==========
@@ -79,10 +80,10 @@ class AuthServiceImplTest {
 
         authService.setup(request);
 
-        ArgumentCaptor<UserEntity> captor = ArgumentCaptor.forClass(UserEntity.class);
-        verify(userMapper).insert(captor.capture());
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
 
-        UserEntity saved = captor.getValue();
+        User saved = captor.getValue();
         assertThat(saved.getMasterPasswordHash()).isEqualTo(testPasswordHash);
         assertThat(saved.getSalt()).isEqualTo(Base64.getEncoder().encodeToString(testSalt));
         assertThat(saved.getEncryptionKeyEncrypted()).isNotNull();
@@ -103,7 +104,6 @@ class AuthServiceImplTest {
 
     @Test
     void should_rejectSetup_when_passwordLacksCharacterTypes() {
-        // 12 chars but only lowercase letters (1 type)
         CreateMasterPasswordRequest request = CreateMasterPasswordRequest.builder()
                 .masterPassword("abcdefghijkl")
                 .build();
@@ -116,7 +116,6 @@ class AuthServiceImplTest {
 
     @Test
     void should_rejectSetup_when_passwordHasOnlyTwoTypes() {
-        // 12 chars with upper + lower (2 types, need 3)
         CreateMasterPasswordRequest request = CreateMasterPasswordRequest.builder()
                 .masterPassword("AbcdefghijkL")
                 .build();
@@ -141,7 +140,7 @@ class AuthServiceImplTest {
         System.arraycopy(iv, 0, combined, 0, iv.length);
         System.arraycopy(ciphertext, 0, combined, iv.length, ciphertext.length);
 
-        UserEntity user = UserEntity.builder()
+        User user = User.builder()
                 .id(1L)
                 .masterPasswordHash(testPasswordHash)
                 .salt(Base64.getEncoder().encodeToString(testSalt))
@@ -150,7 +149,7 @@ class AuthServiceImplTest {
                 .autoLockMinutes(5)
                 .build();
 
-        when(userMapper.selectOne(any())).thenReturn(user);
+        when(userRepository.findFirst()).thenReturn(Optional.of(user));
         when(argon2Hasher.verify(eq("MyStr0ng!Pass"), eq(testSalt), eq(testPasswordHash))).thenReturn(true);
         when(argon2Hasher.deriveKey(eq("MyStr0ng!Pass"), eq(testSalt), eq(32))).thenReturn(testKek);
         when(encryptionEngine.decrypt(any(EncryptedData.class), eq(testKek))).thenReturn(testDek);
@@ -159,7 +158,7 @@ class AuthServiceImplTest {
 
         assertThat(result.isMfaRequired()).isFalse();
         verify(sessionService).storeDek(eq(1L), eq(testDek));
-        verify(userMapper).updateById(any(UserEntity.class));
+        verify(userRepository).updateById(any(User.class));
     }
 
     @Test
@@ -168,7 +167,7 @@ class AuthServiceImplTest {
                 .masterPassword("WrongPassword1!")
                 .build();
 
-        UserEntity user = UserEntity.builder()
+        User user = User.builder()
                 .id(1L)
                 .masterPasswordHash(testPasswordHash)
                 .salt(Base64.getEncoder().encodeToString(testSalt))
@@ -177,7 +176,7 @@ class AuthServiceImplTest {
                 .autoLockMinutes(5)
                 .build();
 
-        when(userMapper.selectOne(any())).thenReturn(user);
+        when(userRepository.findFirst()).thenReturn(Optional.of(user));
         when(argon2Hasher.verify(eq("WrongPassword1!"), eq(testSalt), eq(testPasswordHash))).thenReturn(false);
 
         assertThatThrownBy(() -> authService.unlock(request))
@@ -186,8 +185,8 @@ class AuthServiceImplTest {
                 .isEqualTo(ErrorCode.MASTER_PASSWORD_WRONG);
 
         // Failed attempts should be incremented
-        ArgumentCaptor<UserEntity> captor = ArgumentCaptor.forClass(UserEntity.class);
-        verify(userMapper).updateById(captor.capture());
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).updateById(captor.capture());
         assertThat(captor.getValue().getFailedAttempts()).isEqualTo(1);
     }
 
@@ -197,16 +196,16 @@ class AuthServiceImplTest {
                 .masterPassword("WrongPassword1!")
                 .build();
 
-        UserEntity user = UserEntity.builder()
+        User user = User.builder()
                 .id(1L)
                 .masterPasswordHash(testPasswordHash)
                 .salt(Base64.getEncoder().encodeToString(testSalt))
                 .encryptionKeyEncrypted(new byte[14])
-                .failedAttempts(4) // already 4 failures
+                .failedAttempts(4)
                 .autoLockMinutes(5)
                 .build();
 
-        when(userMapper.selectOne(any())).thenReturn(user);
+        when(userRepository.findFirst()).thenReturn(Optional.of(user));
         when(argon2Hasher.verify(any(), any(), any())).thenReturn(false);
 
         assertThatThrownBy(() -> authService.unlock(request))
@@ -214,9 +213,9 @@ class AuthServiceImplTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.MASTER_PASSWORD_WRONG);
 
-        ArgumentCaptor<UserEntity> captor = ArgumentCaptor.forClass(UserEntity.class);
-        verify(userMapper).updateById(captor.capture());
-        UserEntity updated = captor.getValue();
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).updateById(captor.capture());
+        User updated = captor.getValue();
         assertThat(updated.getFailedAttempts()).isEqualTo(5);
         assertThat(updated.getLockedUntil()).isNotNull();
         assertThat(updated.getLockedUntil()).isAfter(LocalDateTime.now().plusMinutes(14));
@@ -228,7 +227,7 @@ class AuthServiceImplTest {
                 .masterPassword("MyStr0ng!Pass")
                 .build();
 
-        UserEntity user = UserEntity.builder()
+        User user = User.builder()
                 .id(1L)
                 .masterPasswordHash(testPasswordHash)
                 .salt(Base64.getEncoder().encodeToString(testSalt))
@@ -238,7 +237,7 @@ class AuthServiceImplTest {
                 .autoLockMinutes(5)
                 .build();
 
-        when(userMapper.selectOne(any())).thenReturn(user);
+        when(userRepository.findFirst()).thenReturn(Optional.of(user));
 
         assertThatThrownBy(() -> authService.unlock(request))
                 .isInstanceOf(BusinessException.class)
@@ -254,21 +253,19 @@ class AuthServiceImplTest {
                 .masterPassword("MyStr0ng!Pass")
                 .build();
 
-        byte[] iv = new byte[12];
-        byte[] ciphertext = new byte[2];
         byte[] combined = new byte[14];
 
-        UserEntity user = UserEntity.builder()
+        User user = User.builder()
                 .id(1L)
                 .masterPasswordHash(testPasswordHash)
                 .salt(Base64.getEncoder().encodeToString(testSalt))
                 .encryptionKeyEncrypted(combined)
                 .failedAttempts(5)
-                .lockedUntil(LocalDateTime.now().minusMinutes(1)) // lock expired
+                .lockedUntil(LocalDateTime.now().minusMinutes(1))
                 .autoLockMinutes(5)
                 .build();
 
-        when(userMapper.selectOne(any())).thenReturn(user);
+        when(userRepository.findFirst()).thenReturn(Optional.of(user));
         when(argon2Hasher.verify(any(), any(), any())).thenReturn(true);
         when(argon2Hasher.deriveKey(any(), any(), anyInt())).thenReturn(testKek);
         when(encryptionEngine.decrypt(any(EncryptedData.class), any())).thenReturn(testDek);
@@ -287,7 +284,7 @@ class AuthServiceImplTest {
 
         byte[] combined = new byte[14];
 
-        UserEntity user = UserEntity.builder()
+        User user = User.builder()
                 .id(1L)
                 .masterPasswordHash(testPasswordHash)
                 .salt(Base64.getEncoder().encodeToString(testSalt))
@@ -296,41 +293,38 @@ class AuthServiceImplTest {
                 .autoLockMinutes(5)
                 .build();
 
-        when(userMapper.selectOne(any())).thenReturn(user);
+        when(userRepository.findFirst()).thenReturn(Optional.of(user));
         when(argon2Hasher.verify(any(), any(), any())).thenReturn(true);
         when(argon2Hasher.deriveKey(any(), any(), anyInt())).thenReturn(testKek);
         when(encryptionEngine.decrypt(any(EncryptedData.class), any())).thenReturn(testDek);
 
         authService.unlock(request);
 
-        ArgumentCaptor<UserEntity> captor = ArgumentCaptor.forClass(UserEntity.class);
-        verify(userMapper).updateById(captor.capture());
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).updateById(captor.capture());
         assertThat(captor.getValue().getFailedAttempts()).isEqualTo(0);
         assertThat(captor.getValue().getLockedUntil()).isNull();
     }
 
-    // ========== password complexity validation tests ==========
+    // ========== password complexity validation tests (now on User domain model) ==========
 
     @Test
     void should_acceptPassword_when_threeCharacterTypes() {
-        // upper + lower + digit = 3 types
-        authService.validatePasswordComplexity("Abcdefghij1k");
-        // upper + lower + special = 3 types
-        authService.validatePasswordComplexity("Abcdefghij!k");
-        // lower + digit + special = 3 types
-        authService.validatePasswordComplexity("abcdefghij1!");
+        User.validatePasswordComplexity("Abcdefghij1k");
+        User.validatePasswordComplexity("Abcdefghij!k");
+        User.validatePasswordComplexity("abcdefghij1!");
     }
 
     @Test
     void should_acceptPassword_when_fourCharacterTypes() {
-        authService.validatePasswordComplexity("Abcdefghi1!k");
+        User.validatePasswordComplexity("Abcdefghi1!k");
     }
 
     @Test
     void should_countCharacterTypes_correctly() {
-        assertThat(authService.countCharacterTypes("abc")).isEqualTo(1);
-        assertThat(authService.countCharacterTypes("abcABC")).isEqualTo(2);
-        assertThat(authService.countCharacterTypes("abcABC123")).isEqualTo(3);
-        assertThat(authService.countCharacterTypes("abcABC123!")).isEqualTo(4);
+        assertThat(User.countCharacterTypes("abc")).isEqualTo(1);
+        assertThat(User.countCharacterTypes("abcABC")).isEqualTo(2);
+        assertThat(User.countCharacterTypes("abcABC123")).isEqualTo(3);
+        assertThat(User.countCharacterTypes("abcABC123!")).isEqualTo(4);
     }
 }

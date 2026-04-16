@@ -7,9 +7,10 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
-import com.pm.passwordmanager.infrastructure.persistence.entity.PasswordRuleEntity;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.PasswordRuleMapper;
+import com.pm.passwordmanager.domain.model.PasswordRule;
+import com.pm.passwordmanager.domain.repository.PasswordRuleRepository;
 import com.pm.passwordmanager.infrastructure.encryption.PasswordStrengthEvaluator;
 import com.pm.passwordmanager.infrastructure.encryption.SecureRandomUtil;
 
@@ -31,35 +32,34 @@ import net.jqwik.api.lifecycle.BeforeProperty;
 @Label("Feature: password-manager, Property 6: 密码规则保存往返")
 class PasswordRuleRoundTripPropertyTest {
 
-    private PasswordRuleMapper passwordRuleMapper;
+    private PasswordRuleRepository passwordRuleRepository;
     private PasswordGeneratorServiceImpl service;
-    private final List<PasswordRuleEntity> storedRules = new ArrayList<>();
+    private final List<PasswordRule> storedRules = new ArrayList<>();
     private long idCounter;
 
     @BeforeProperty
     void setUp() {
-        passwordRuleMapper = mock(PasswordRuleMapper.class);
+        passwordRuleRepository = mock(PasswordRuleRepository.class);
         SecureRandomUtil secureRandomUtil = new SecureRandomUtil();
         PasswordStrengthEvaluator evaluator = new PasswordStrengthEvaluator();
-        service = new PasswordGeneratorServiceImpl(secureRandomUtil, evaluator, passwordRuleMapper);
+        service = new PasswordGeneratorServiceImpl(secureRandomUtil, evaluator, passwordRuleRepository);
         storedRules.clear();
         idCounter = 1;
 
-        // Simulate insert: capture the entity, assign an ID, and store it
-        when(passwordRuleMapper.insert(any(PasswordRuleEntity.class))).thenAnswer(invocation -> {
-            PasswordRuleEntity entity = invocation.getArgument(0);
-            entity.setId(idCounter++);
-            storedRules.add(entity);
-            return 1;
+        // Simulate save: capture the model, assign an ID, and store it
+        when(passwordRuleRepository.save(any(PasswordRule.class))).thenAnswer(invocation -> {
+            PasswordRule rule = invocation.getArgument(0);
+            rule.setId(idCounter++);
+            storedRules.add(rule);
+            return rule;
         });
 
-        // Simulate selectById: return the stored entity matching the ID
-        when(passwordRuleMapper.selectById(any())).thenAnswer(invocation -> {
+        // Simulate findById: return the stored model matching the ID
+        when(passwordRuleRepository.findById(any())).thenAnswer(invocation -> {
             Long id = invocation.getArgument(0);
             return storedRules.stream()
                     .filter(r -> r.getId().equals(id))
-                    .findFirst()
-                    .orElse(null);
+                    .findFirst();
         });
     }
 
@@ -73,8 +73,8 @@ class PasswordRuleRoundTripPropertyTest {
     void should_returnEquivalentRule_when_savedAndQueriedById(
             @ForAll("validPasswordRules") PasswordRuleInput input
     ) {
-        // Build the rule entity from generated input
-        PasswordRuleEntity rule = PasswordRuleEntity.builder()
+        // Build the rule domain model from generated input
+        PasswordRule rule = PasswordRule.builder()
                 .ruleName(input.ruleName)
                 .length(input.length)
                 .includeUppercase(input.includeUppercase)
@@ -86,10 +86,10 @@ class PasswordRuleRoundTripPropertyTest {
 
         // Save the rule
         Long userId = input.userId;
-        PasswordRuleEntity saved = service.saveRule(userId, rule);
+        PasswordRule saved = service.saveRule(userId, rule);
 
         // Query back by ID
-        PasswordRuleEntity queried = service.getRuleById(saved.getId());
+        PasswordRule queried = service.getRuleById(saved.getId());
 
         // Verify round-trip equivalence
         assertThat(queried).isNotNull();
@@ -119,7 +119,6 @@ class PasswordRuleRoundTripPropertyTest {
 
         return Combinators.combine(userIds, ruleNames, lengths, booleans, booleans, booleans, booleans, booleans)
                 .as((userId, name, length, upper, lower, digits, special, isDefault) -> {
-                    // Ensure at least one character type is selected
                     boolean hasAny = upper || lower || digits || special;
                     if (!hasAny) {
                         upper = true;

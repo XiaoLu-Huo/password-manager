@@ -7,7 +7,7 @@ import java.util.List;
 
 import com.pm.passwordmanager.api.dto.request.GeneratePasswordRequest;
 import com.pm.passwordmanager.api.dto.response.GeneratedPasswordResponse;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.PasswordRuleMapper;
+import com.pm.passwordmanager.domain.repository.PasswordRuleRepository;
 import com.pm.passwordmanager.infrastructure.encryption.PasswordStrengthEvaluator;
 import com.pm.passwordmanager.infrastructure.encryption.SecureRandomUtil;
 
@@ -43,8 +43,8 @@ class PasswordGeneratorPropertyTest {
         // Use a real SecureRandom-backed SecureRandomUtil via spy
         SecureRandomUtil realSecureRandomUtil = new SecureRandomUtil();
         PasswordStrengthEvaluator realEvaluator = new PasswordStrengthEvaluator();
-        PasswordRuleMapper mockMapper = Mockito.mock(PasswordRuleMapper.class);
-        this.service = new PasswordGeneratorServiceImpl(realSecureRandomUtil, realEvaluator, mockMapper);
+        PasswordRuleRepository mockRepository = Mockito.mock(PasswordRuleRepository.class);
+        this.service = new PasswordGeneratorServiceImpl(realSecureRandomUtil, realEvaluator, mockRepository);
     }
 
     /**

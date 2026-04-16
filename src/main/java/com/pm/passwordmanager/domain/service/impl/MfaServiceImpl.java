@@ -8,14 +8,13 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.pm.passwordmanager.api.dto.response.MfaSetupResponse;
-import com.pm.passwordmanager.infrastructure.persistence.entity.MfaConfigEntity;
-import com.pm.passwordmanager.exception.BusinessException;
-import com.pm.passwordmanager.exception.ErrorCode;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.MfaConfigMapper;
+import com.pm.passwordmanager.domain.model.MfaConfig;
+import com.pm.passwordmanager.domain.repository.MfaConfigRepository;
 import com.pm.passwordmanager.domain.service.MfaService;
 import com.pm.passwordmanager.domain.service.SessionService;
+import com.pm.passwordmanager.exception.BusinessException;
+import com.pm.passwordmanager.exception.ErrorCode;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptedData;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptionEngine;
 import com.pm.passwordmanager.infrastructure.totp.TotpUtil;
@@ -30,7 +29,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class MfaServiceImpl implements MfaService {
 
-    private final MfaConfigMapper mfaConfigMapper;
+    private final MfaConfigRepository mfaConfigRepository;
     private final TotpUtil totpUtil;
     private final EncryptionEngine encryptionEngine;
     private final SessionService sessionService;
@@ -38,7 +37,7 @@ public class MfaServiceImpl implements MfaService {
     @Override
     public MfaSetupResponse initSetup(Long userId) {
         // 检查是否已启用 MFA
-        MfaConfigEntity existing = findByUserId(userId);
+        MfaConfig existing = mfaConfigRepository.findByUserId(userId).orElse(null);
         if (existing != null && Boolean.TRUE.equals(existing.getEnabled())) {
             throw new BusinessException(ErrorCode.MFA_ALREADY_ENABLED);
         }
@@ -63,9 +62,9 @@ public class MfaServiceImpl implements MfaService {
             existing.setRecoveryCodesEncrypted(encryptedRecoveryCodes);
             existing.setEnabled(false);
             existing.setUpdatedAt(LocalDateTime.now());
-            mfaConfigMapper.updateById(existing);
+            mfaConfigRepository.updateById(existing);
         } else {
-            MfaConfigEntity entity = MfaConfigEntity.builder()
+            MfaConfig config = MfaConfig.builder()
                     .userId(userId)
                     .totpSecretEncrypted(encryptedSecret)
                     .enabled(false)
@@ -73,7 +72,7 @@ public class MfaServiceImpl implements MfaService {
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
                     .build();
-            mfaConfigMapper.insert(entity);
+            mfaConfigRepository.save(config);
         }
 
         List<String> recoveryCodeList = Arrays.asList(recoveryCodes);
@@ -85,7 +84,7 @@ public class MfaServiceImpl implements MfaService {
 
     @Override
     public void confirmEnable(Long userId, String totpCode) {
-        MfaConfigEntity config = findByUserId(userId);
+        MfaConfig config = mfaConfigRepository.findByUserId(userId).orElse(null);
         if (config == null) {
             throw new BusinessException(ErrorCode.MFA_NOT_ENABLED);
         }
@@ -104,12 +103,12 @@ public class MfaServiceImpl implements MfaService {
         // 验证通过，正式启用 MFA
         config.setEnabled(true);
         config.setUpdatedAt(LocalDateTime.now());
-        mfaConfigMapper.updateById(config);
+        mfaConfigRepository.updateById(config);
     }
 
     @Override
     public boolean verifyTotp(Long userId, String totpCode) {
-        MfaConfigEntity config = findByUserId(userId);
+        MfaConfig config = mfaConfigRepository.findByUserId(userId).orElse(null);
         if (config == null || !Boolean.TRUE.equals(config.getEnabled())) {
             throw new BusinessException(ErrorCode.MFA_NOT_ENABLED);
         }
@@ -122,7 +121,7 @@ public class MfaServiceImpl implements MfaService {
 
     @Override
     public void disable(Long userId) {
-        MfaConfigEntity config = findByUserId(userId);
+        MfaConfig config = mfaConfigRepository.findByUserId(userId).orElse(null);
         if (config == null || !Boolean.TRUE.equals(config.getEnabled())) {
             throw new BusinessException(ErrorCode.MFA_NOT_ENABLED);
         }
@@ -131,19 +130,13 @@ public class MfaServiceImpl implements MfaService {
         config.setTotpSecretEncrypted(null);
         config.setRecoveryCodesEncrypted(null);
         config.setUpdatedAt(LocalDateTime.now());
-        mfaConfigMapper.updateById(config);
+        mfaConfigRepository.updateById(config);
     }
 
     @Override
     public boolean isMfaEnabled(Long userId) {
-        MfaConfigEntity config = findByUserId(userId);
+        MfaConfig config = mfaConfigRepository.findByUserId(userId).orElse(null);
         return config != null && Boolean.TRUE.equals(config.getEnabled());
-    }
-
-    private MfaConfigEntity findByUserId(Long userId) {
-        return mfaConfigMapper.selectOne(
-                new LambdaQueryWrapper<MfaConfigEntity>()
-                        .eq(MfaConfigEntity::getUserId, userId));
     }
 
     private byte[] getRequiredDek(Long userId) {
@@ -154,9 +147,7 @@ public class MfaServiceImpl implements MfaService {
         return dek;
     }
 
-    /**
-     * 使用 DEK 加密字符串，返回 Base64 编码的 "iv:ciphertext" 格式。
-     */
+    /** 使用 DEK 加密字符串，返回 Base64 编码的 "iv:ciphertext" 格式。 */
     private String encryptString(String plaintext, byte[] dek) {
         EncryptedData encrypted = encryptionEngine.encrypt(
                 plaintext.getBytes(StandardCharsets.UTF_8), dek);
@@ -165,9 +156,7 @@ public class MfaServiceImpl implements MfaService {
         return ivBase64 + ":" + ciphertextBase64;
     }
 
-    /**
-     * 解密 Base64 编码的 "iv:ciphertext" 格式字符串。
-     */
+    /** 解密 Base64 编码的 "iv:ciphertext" 格式字符串。 */
     private String decryptString(String encryptedStr, byte[] dek) {
         String[] parts = encryptedStr.split(":");
         byte[] iv = Base64.getDecoder().decode(parts[0]);

@@ -3,6 +3,7 @@ package com.pm.passwordmanager.domain.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.pm.passwordmanager.domain.model.User;
 import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
 
@@ -23,8 +24,6 @@ import net.jqwik.api.Provide;
 @Label("Feature: password-manager, Property 1: 主密码复杂度验证")
 class MasterPasswordValidationPropertyTest {
 
-    private final AuthServiceImpl authService = new AuthServiceImpl(null, null, null, null, null);
-
     /**
      * 长度 ≥ 12 且包含至少三种字符类型的密码应通过验证。
      *
@@ -36,7 +35,7 @@ class MasterPasswordValidationPropertyTest {
             @ForAll("validMasterPasswords") String password
     ) {
         // Should not throw any exception
-        authService.validatePasswordComplexity(password);
+        User.validatePasswordComplexity(password);
 
         // Verify our oracle agrees
         assertThat(password.length()).isGreaterThanOrEqualTo(12);
@@ -53,7 +52,7 @@ class MasterPasswordValidationPropertyTest {
     void should_rejectPassword_when_lengthLessThan12(
             @ForAll("shortPasswords") String password
     ) {
-        assertThatThrownBy(() -> authService.validatePasswordComplexity(password))
+        assertThatThrownBy(() -> User.validatePasswordComplexity(password))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.MASTER_PASSWORD_TOO_WEAK));
@@ -72,7 +71,7 @@ class MasterPasswordValidationPropertyTest {
         assertThat(password.length()).isGreaterThanOrEqualTo(12);
         assertThat(countCharacterTypes(password)).isLessThan(3);
 
-        assertThatThrownBy(() -> authService.validatePasswordComplexity(password))
+        assertThatThrownBy(() -> User.validatePasswordComplexity(password))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.MASTER_PASSWORD_TOO_WEAK));
@@ -92,9 +91,9 @@ class MasterPasswordValidationPropertyTest {
         boolean shouldPass = password.length() >= 12 && countCharacterTypes(password) >= 3;
 
         if (shouldPass) {
-            authService.validatePasswordComplexity(password);
+            User.validatePasswordComplexity(password);
         } else {
-            assertThatThrownBy(() -> authService.validatePasswordComplexity(password))
+            assertThatThrownBy(() -> User.validatePasswordComplexity(password))
                     .isInstanceOf(BusinessException.class)
                     .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                             .isEqualTo(ErrorCode.MASTER_PASSWORD_TOO_WEAK));
@@ -106,7 +105,6 @@ class MasterPasswordValidationPropertyTest {
     @Provide
     Arbitrary<String> validMasterPasswords() {
         return Arbitraries.integers().between(12, 64).flatMap(len -> {
-            // Ensure at least 3 character types: lowercase + uppercase + digit (+ optional special)
             int remaining = len - 3;
             return Combinators.combine(
                     Arbitraries.strings().withCharRange('a', 'z').ofLength(Math.max(remaining, 1)),
@@ -115,7 +113,6 @@ class MasterPasswordValidationPropertyTest {
                     Arbitraries.of('!', '@', '#', '$', '%').map(String::valueOf)
             ).as((base, upper, digit, special) -> {
                 String result = base + upper + digit + special;
-                // Trim to exact length if needed
                 if (result.length() > len) {
                     return result.substring(0, len);
                 }
@@ -144,19 +141,15 @@ class MasterPasswordValidationPropertyTest {
     @Provide
     Arbitrary<String> longPasswordsFewTypes() {
         return Arbitraries.oneOf(
-                // 1 type only: lowercase
                 Arbitraries.integers().between(12, 40).flatMap(len ->
                         Arbitraries.strings().withCharRange('a', 'z').ofLength(len)),
-                // 1 type only: uppercase
                 Arbitraries.integers().between(12, 40).flatMap(len ->
                         Arbitraries.strings().withCharRange('A', 'Z').ofLength(len)),
-                // 2 types: lowercase + digits
                 Arbitraries.integers().between(12, 40).flatMap(len ->
                         Combinators.combine(
                                 Arbitraries.strings().withCharRange('a', 'z').ofLength(len - 1),
                                 Arbitraries.strings().withCharRange('0', '9').ofLength(1)
                         ).as((base, digit) -> base + digit)),
-                // 2 types: uppercase + lowercase
                 Arbitraries.integers().between(12, 40).flatMap(len ->
                         Combinators.combine(
                                 Arbitraries.strings().withCharRange('a', 'z').ofLength(len - 1),
@@ -168,11 +161,8 @@ class MasterPasswordValidationPropertyTest {
     @Provide
     Arbitrary<String> anyPasswords() {
         return Arbitraries.oneOf(
-                // Random ASCII strings of various lengths
                 Arbitraries.strings().ascii().ofMinLength(1).ofMaxLength(64),
-                // Specifically short strings
                 Arbitraries.strings().ascii().ofMinLength(1).ofMaxLength(11),
-                // Specifically long strings with mixed chars
                 Arbitraries.integers().between(12, 64).flatMap(len ->
                         Arbitraries.strings().ascii().ofLength(len))
         );

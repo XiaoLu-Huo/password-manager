@@ -13,13 +13,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Base64;
+import java.util.Optional;
 
 import com.pm.passwordmanager.api.dto.request.UnlockVaultRequest;
 import com.pm.passwordmanager.api.dto.response.UnlockResultResponse;
-import com.pm.passwordmanager.infrastructure.persistence.entity.UserEntity;
+import com.pm.passwordmanager.domain.model.User;
+import com.pm.passwordmanager.domain.repository.UserRepository;
 import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.UserMapper;
 import com.pm.passwordmanager.domain.service.MfaService;
 import com.pm.passwordmanager.domain.service.SessionService;
 import com.pm.passwordmanager.infrastructure.encryption.Argon2Hasher;
@@ -44,7 +45,7 @@ import net.jqwik.api.lifecycle.BeforeTry;
 @Label("Feature: password-manager, Property 4: MFA 双因素强制")
 class MfaEnforcementPropertyTest {
 
-    private UserMapper userMapper;
+    private UserRepository userRepository;
     private Argon2Hasher argon2Hasher;
     private EncryptionEngine encryptionEngine;
     private SessionService sessionService;
@@ -61,16 +62,16 @@ class MfaEnforcementPropertyTest {
 
     @BeforeTry
     void setUp() {
-        userMapper = mock(UserMapper.class);
+        userRepository = mock(UserRepository.class);
         argon2Hasher = mock(Argon2Hasher.class);
         encryptionEngine = mock(EncryptionEngine.class);
         sessionService = mock(SessionService.class);
         mfaService = mock(MfaService.class);
-        authService = new AuthServiceImpl(userMapper, argon2Hasher, encryptionEngine, sessionService, mfaService);
+        authService = new AuthServiceImpl(userRepository, argon2Hasher, encryptionEngine, sessionService, mfaService);
     }
 
-    private UserEntity buildUser() {
-        return UserEntity.builder()
+    private User buildUser() {
+        return User.builder()
                 .id(1L)
                 .masterPasswordHash(testPasswordHash)
                 .salt(encodedSalt)
@@ -82,11 +83,10 @@ class MfaEnforcementPropertyTest {
     }
 
     private void stubCorrectPassword() {
-        when(userMapper.selectOne(any())).thenReturn(buildUser());
+        when(userRepository.findFirst()).thenReturn(Optional.of(buildUser()));
         when(argon2Hasher.verify(any(), any(), any())).thenReturn(true);
         when(argon2Hasher.deriveKey(any(), any(), anyInt())).thenReturn(testKek);
         when(encryptionEngine.decrypt(any(EncryptedData.class), any())).thenReturn(testDek);
-        when(userMapper.updateById(any(UserEntity.class))).thenReturn(1);
     }
 
     /**
@@ -109,9 +109,7 @@ class MfaEnforcementPropertyTest {
 
         UnlockResultResponse result = authService.unlock(request);
 
-        // Should indicate MFA is required
         assertThat(result.isMfaRequired()).isTrue();
-        // DEK should NOT be stored in session yet
         verify(sessionService, never()).storeDek(anyLong(), any());
     }
 
@@ -130,14 +128,12 @@ class MfaEnforcementPropertyTest {
         when(mfaService.isMfaEnabled(anyLong())).thenReturn(true);
         when(mfaService.verifyTotp(anyLong(), anyString())).thenReturn(false);
 
-        // Step 1: unlock with correct password → mfaRequired
         UnlockVaultRequest request = UnlockVaultRequest.builder()
                 .masterPassword(masterPassword)
                 .build();
         UnlockResultResponse unlockResult = authService.unlock(request);
         assertThat(unlockResult.isMfaRequired()).isTrue();
 
-        // Step 2: verify with invalid TOTP → should fail
         assertThatThrownBy(() -> authService.verifyTotpAndUnlock(invalidTotpCode))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
@@ -159,18 +155,15 @@ class MfaEnforcementPropertyTest {
         when(mfaService.isMfaEnabled(anyLong())).thenReturn(true);
         when(mfaService.verifyTotp(anyLong(), eq(validTotpCode))).thenReturn(true);
 
-        // Step 1: unlock with correct password → mfaRequired
         UnlockVaultRequest request = UnlockVaultRequest.builder()
                 .masterPassword(masterPassword)
                 .build();
         UnlockResultResponse unlockResult = authService.unlock(request);
         assertThat(unlockResult.isMfaRequired()).isTrue();
 
-        // Step 2: verify with valid TOTP → should succeed
         UnlockResultResponse totpResult = authService.verifyTotpAndUnlock(validTotpCode);
         assertThat(totpResult.isMfaRequired()).isFalse();
 
-        // DEK should now be stored in session
         verify(sessionService).storeDek(eq(1L), any());
     }
 
@@ -193,9 +186,7 @@ class MfaEnforcementPropertyTest {
 
         UnlockResultResponse result = authService.unlock(request);
 
-        // Should unlock directly without MFA
         assertThat(result.isMfaRequired()).isFalse();
-        // DEK should be stored in session immediately
         verify(sessionService).storeDek(eq(1L), any());
     }
 
@@ -209,7 +200,6 @@ class MfaEnforcementPropertyTest {
 
     @Provide
     Arbitrary<String> validTotpCodes() {
-        // 6-digit numeric codes
         return Arbitraries.integers().between(0, 999999)
                 .map(i -> String.format("%06d", i));
     }
@@ -217,10 +207,8 @@ class MfaEnforcementPropertyTest {
     @Provide
     Arbitrary<String> invalidTotpCodes() {
         return Arbitraries.oneOf(
-                // Wrong length codes
                 Arbitraries.strings().numeric().ofMinLength(1).ofMaxLength(5),
                 Arbitraries.strings().numeric().ofMinLength(7).ofMaxLength(10),
-                // Non-numeric codes
                 Arbitraries.strings().alpha().ofLength(6)
         );
     }

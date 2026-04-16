@@ -38,4 +38,11 @@ public interface AuthService {
      * @return 解锁结果
      */
     UnlockResultResponse verifyTotpAndUnlock(String totpCode);
+
+    /**
+     * 获取当前用户 ID（单用户系统）。
+     *
+     * @return 用户 ID
+     */
+    Long getCurrentUserId();
 }
