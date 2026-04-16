@@ -20,7 +20,6 @@ mybatis-plus:
   global-config:
     db-config:
       id-type: auto
-      table-prefix: pm_
 
 springdoc:
   api-docs:

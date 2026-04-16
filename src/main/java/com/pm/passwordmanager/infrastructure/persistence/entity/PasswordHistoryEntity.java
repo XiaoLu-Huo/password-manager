@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("password_history")
+@TableName("pm_password_history")
 public class PasswordHistoryEntity {
 
     @TableId(type = IdType.AUTO)

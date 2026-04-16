@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("credential")
+@TableName("pm_credential")
 public class CredentialEntity {
 
     @TableId(type = IdType.AUTO)
