@@ -52,6 +52,13 @@ public class PasswordGenController {
     @PostMapping("/evaluate")
     @Operation(summary = "评估密码强度")
     public ApiResponse<PasswordStrengthResponse> evaluate(@RequestBody String password) {
+        // Spring's StringHttpMessageConverter reads the raw body as-is,
+        // so a JSON string like "\"abc\"" keeps the surrounding quotes.
+        // Strip them to get the actual password value.
+        if (password != null && password.length() >= 2
+                && password.startsWith("\"") && password.endsWith("\"")) {
+            password = password.substring(1, password.length() - 1);
+        }
         return ApiResponse.success(PasswordStrengthResponse.builder()
                 .strengthLevel(passwordStrengthEvaluator.evaluate(password)).build());
     }
