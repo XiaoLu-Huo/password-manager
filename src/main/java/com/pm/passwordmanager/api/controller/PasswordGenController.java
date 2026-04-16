@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.pm.passwordmanager.api.assembler.PasswordGenDtoMapper;
+import com.pm.passwordmanager.api.dto.request.EvaluatePasswordRequest;
 import com.pm.passwordmanager.api.dto.request.GeneratePasswordRequest;
 import com.pm.passwordmanager.api.dto.response.ApiResponse;
 import com.pm.passwordmanager.api.dto.response.GeneratedPasswordResponse;
@@ -51,16 +52,9 @@ public class PasswordGenController {
 
     @PostMapping("/evaluate")
     @Operation(summary = "评估密码强度")
-    public ApiResponse<PasswordStrengthResponse> evaluate(@RequestBody String password) {
-        // Spring's StringHttpMessageConverter reads the raw body as-is,
-        // so a JSON string like "\"abc\"" keeps the surrounding quotes.
-        // Strip them to get the actual password value.
-        if (password != null && password.length() >= 2
-                && password.startsWith("\"") && password.endsWith("\"")) {
-            password = password.substring(1, password.length() - 1);
-        }
+    public ApiResponse<PasswordStrengthResponse> evaluate(@Valid @RequestBody EvaluatePasswordRequest request) {
         return ApiResponse.success(PasswordStrengthResponse.builder()
-                .strengthLevel(passwordStrengthEvaluator.evaluate(password)).build());
+                .strengthLevel(passwordStrengthEvaluator.evaluate(request.getPassword())).build());
     }
 
     @GetMapping("/rules")
