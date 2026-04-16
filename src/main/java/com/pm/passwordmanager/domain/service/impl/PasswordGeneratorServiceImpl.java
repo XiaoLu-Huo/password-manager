@@ -67,6 +67,11 @@ public class PasswordGeneratorServiceImpl implements PasswordGeneratorService {
     @Override
     public PasswordRule saveRule(Long userId, PasswordRule rule) {
         rule.setUserId(userId);
+        // Check for duplicate rule name
+        passwordRuleRepository.findByUserIdAndRuleName(userId, rule.getRuleName())
+                .ifPresent(existing -> {
+                    throw new BusinessException(ErrorCode.RULE_NAME_DUPLICATE);
+                });
         return passwordRuleRepository.save(rule);
     }
 
@@ -78,6 +83,26 @@ public class PasswordGeneratorServiceImpl implements PasswordGeneratorService {
     @Override
     public PasswordRule getRuleById(Long ruleId) {
         return passwordRuleRepository.findById(ruleId).orElse(null);
+    }
+
+    @Override
+    public PasswordRule updateRule(Long userId, Long ruleId, PasswordRule rule) {
+        PasswordRule existing = passwordRuleRepository.findById(ruleId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RULE_NOT_FOUND));
+        // Check for duplicate rule name (exclude self)
+        passwordRuleRepository.findByUserIdAndRuleName(userId, rule.getRuleName())
+                .ifPresent(dup -> {
+                    if (!dup.getId().equals(ruleId)) {
+                        throw new BusinessException(ErrorCode.RULE_NAME_DUPLICATE);
+                    }
+                });
+        existing.setRuleName(rule.getRuleName());
+        existing.setLength(rule.getLength());
+        existing.setIncludeUppercase(rule.getIncludeUppercase());
+        existing.setIncludeLowercase(rule.getIncludeLowercase());
+        existing.setIncludeDigits(rule.getIncludeDigits());
+        existing.setIncludeSpecial(rule.getIncludeSpecial());
+        return passwordRuleRepository.updateById(existing);
     }
 
     @Override

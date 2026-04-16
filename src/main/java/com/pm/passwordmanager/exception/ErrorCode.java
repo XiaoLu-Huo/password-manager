@@ -31,6 +31,8 @@ public enum ErrorCode {
     PASSWORD_LENGTH_TOO_SHORT(40001, "密码长度不能少于 8 个字符"),
     PASSWORD_LENGTH_TOO_LONG(40002, "密码长度不能超过 128 个字符"),
     NO_CHAR_TYPE_SELECTED(40003, "至少选择一种字符类型"),
+    RULE_NAME_DUPLICATE(40004, "规则名称已存在"),
+    RULE_NOT_FOUND(40005, "密码规则不存在"),
 
     // 导入导出错误 (5xxxx)
     UNSUPPORTED_FILE_FORMAT(50001, "文件格式不支持，请使用有效的 Excel 文件"),

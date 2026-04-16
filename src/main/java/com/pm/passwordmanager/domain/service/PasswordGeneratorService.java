@@ -47,6 +47,16 @@ public interface PasswordGeneratorService {
     PasswordRule getRuleById(Long ruleId);
 
     /**
+     * 更新已有密码规则。
+     *
+     * @param userId 用户 ID
+     * @param ruleId 规则 ID
+     * @param rule   更新后的密码规则
+     * @return 更新后的规则
+     */
+    PasswordRule updateRule(Long userId, Long ruleId, PasswordRule rule);
+
+    /**
      * 根据 ID 删除密码规则。
      *
      * @param ruleId 规则 ID

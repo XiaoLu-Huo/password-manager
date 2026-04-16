@@ -19,6 +19,12 @@ public interface PasswordRuleRepository {
     /** 根据 ID 查询密码规则。 */
     Optional<PasswordRule> findById(Long id);
 
+    /** 根据用户 ID 和规则名称查询密码规则。 */
+    Optional<PasswordRule> findByUserIdAndRuleName(Long userId, String ruleName);
+
+    /** 更新密码规则。 */
+    PasswordRule updateById(PasswordRule rule);
+
     /** 根据 ID 删除密码规则。 */
     void deleteById(Long id);
 }

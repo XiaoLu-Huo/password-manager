@@ -49,6 +49,22 @@ public class PasswordRuleRepositoryImpl implements PasswordRuleRepository {
     }
 
     @Override
+    public Optional<PasswordRule> findByUserIdAndRuleName(Long userId, String ruleName) {
+        return Optional.ofNullable(passwordRuleMapper.selectOne(
+                new LambdaQueryWrapper<PasswordRuleEntity>()
+                        .eq(PasswordRuleEntity::getUserId, userId)
+                        .eq(PasswordRuleEntity::getRuleName, ruleName)))
+                .map(assembler::toDomain);
+    }
+
+    @Override
+    public PasswordRule updateById(PasswordRule rule) {
+        PasswordRuleEntity entity = assembler.toEntity(rule);
+        passwordRuleMapper.updateById(entity);
+        return rule;
+    }
+
+    @Override
     public void deleteById(Long id) {
         passwordRuleMapper.deleteById(id);
     }
