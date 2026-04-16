@@ -121,7 +121,7 @@ public class AuthServiceImpl implements AuthService {
 
         return UnlockResultResponse.builder()
                 .mfaRequired(false)
-                .sessionToken(null)
+                .sessionToken("authenticated")
                 .build();
     }
 
