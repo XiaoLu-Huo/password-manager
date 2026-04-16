@@ -1,7 +1,8 @@
-package com.pm.passwordmanager.domain.service.impl;
+package com.pm.passwordmanager.service.impl;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -10,16 +11,17 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.pm.passwordmanager.api.dto.request.UpdateCredentialRequest;
-import com.pm.passwordmanager.infrastructure.persistence.entity.CredentialEntity;
-import com.pm.passwordmanager.exception.BusinessException;
-import com.pm.passwordmanager.exception.ErrorCode;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.CredentialMapper;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.PasswordHistoryMapper;
+import com.pm.passwordmanager.domain.command.UpdateCredentialCommand;
+import com.pm.passwordmanager.domain.model.Credential;
+import com.pm.passwordmanager.domain.repository.CredentialRepository;
 import com.pm.passwordmanager.domain.service.PasswordGeneratorService;
 import com.pm.passwordmanager.domain.service.SessionService;
+import com.pm.passwordmanager.domain.service.impl.CredentialServiceImpl;
+import com.pm.passwordmanager.exception.BusinessException;
+import com.pm.passwordmanager.exception.ErrorCode;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptedData;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptionEngine;
+import com.pm.passwordmanager.infrastructure.persistence.mapper.PasswordHistoryMapper;
 
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
@@ -30,8 +32,6 @@ import net.jqwik.api.Provide;
 
 /**
  * Property 12: 新旧密码不同验证
- * 验证：新密码与当前密码相同时更新被拒绝。
- *
  * Validates: Requirements 5.5
  */
 @Label("Feature: password-manager, Property 12: 新旧密码不同验证")
@@ -41,66 +41,48 @@ class SamePasswordRejectionPropertyTest {
     private static final Long CREDENTIAL_ID = 100L;
     private static final byte[] FAKE_DEK = new byte[32];
 
-    private final CredentialMapper credentialMapper = mock(CredentialMapper.class);
+    private final CredentialRepository credentialRepository = mock(CredentialRepository.class);
     private final PasswordHistoryMapper passwordHistoryMapper = mock(PasswordHistoryMapper.class);
     private final EncryptionEngine encryptionEngine = mock(EncryptionEngine.class);
     private final SessionService sessionService = mock(SessionService.class);
     private final PasswordGeneratorService passwordGeneratorService = mock(PasswordGeneratorService.class);
 
     private final CredentialServiceImpl service = new CredentialServiceImpl(
-            credentialMapper, passwordHistoryMapper, encryptionEngine, sessionService, passwordGeneratorService);
+            credentialRepository, passwordHistoryMapper, encryptionEngine, sessionService, passwordGeneratorService, null);
 
     SamePasswordRejectionPropertyTest() {
         when(sessionService.getDek(USER_ID)).thenReturn(FAKE_DEK);
         when(sessionService.isSessionActive(USER_ID)).thenReturn(true);
     }
 
-    /**
-     * 当新密码与当前密码相同时，更新应被拒绝并抛出 SAME_PASSWORD 异常。
-     *
-     * Validates: Requirements 5.5
-     */
     @Property(tries = 100)
     @Label("should_rejectUpdate_when_newPasswordSameAsCurrent")
     void should_rejectUpdate_when_newPasswordSameAsCurrent(
             @ForAll("nonBlankPasswords") String currentPassword
     ) {
-        // Arrange: existing credential with currentPassword encrypted
         byte[] encryptedBytes = ("enc_" + currentPassword).getBytes(StandardCharsets.UTF_8);
         byte[] iv = new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
 
-        CredentialEntity entity = CredentialEntity.builder()
-                .id(CREDENTIAL_ID)
-                .userId(USER_ID)
-                .accountName("TestAccount")
-                .username("testuser")
-                .passwordEncrypted(encryptedBytes)
-                .iv(iv)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+        Credential credential = Credential.builder()
+                .id(CREDENTIAL_ID).userId(USER_ID)
+                .accountName("TestAccount").username("testuser")
+                .passwordEncrypted(encryptedBytes).iv(iv)
+                .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
                 .build();
 
-        when(credentialMapper.selectById(CREDENTIAL_ID)).thenReturn(entity);
-        // Decrypt returns the current password
+        when(credentialRepository.findById(CREDENTIAL_ID)).thenReturn(Optional.of(credential));
         when(encryptionEngine.decrypt(any(EncryptedData.class), eq(FAKE_DEK)))
                 .thenReturn(currentPassword.getBytes(StandardCharsets.UTF_8));
 
-        // Act & Assert: update with same password should be rejected
-        UpdateCredentialRequest request = UpdateCredentialRequest.builder()
-                .password(currentPassword)
-                .build();
+        UpdateCredentialCommand command = UpdateCredentialCommand.builder()
+                .password(currentPassword).build();
 
-        assertThatThrownBy(() -> service.updateCredential(USER_ID, CREDENTIAL_ID, request))
+        assertThatThrownBy(() -> service.updateCredential(USER_ID, CREDENTIAL_ID, command))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.SAME_PASSWORD));
     }
 
-    /**
-     * 当新密码与当前密码不同时，更新应成功。
-     *
-     * Validates: Requirements 5.5
-     */
     @Property(tries = 100)
     @Label("should_acceptUpdate_when_newPasswordDifferentFromCurrent")
     void should_acceptUpdate_when_newPasswordDifferentFromCurrent(
@@ -112,44 +94,32 @@ class SamePasswordRejectionPropertyTest {
         byte[] encryptedBytes = ("enc_" + currentPassword).getBytes(StandardCharsets.UTF_8);
         byte[] iv = new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
 
-        CredentialEntity entity = CredentialEntity.builder()
-                .id(CREDENTIAL_ID)
-                .userId(USER_ID)
-                .accountName("TestAccount")
-                .username("testuser")
-                .passwordEncrypted(encryptedBytes)
-                .iv(iv)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+        Credential credential = Credential.builder()
+                .id(CREDENTIAL_ID).userId(USER_ID)
+                .accountName("TestAccount").username("testuser")
+                .passwordEncrypted(encryptedBytes).iv(iv)
+                .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
                 .build();
 
-        when(credentialMapper.selectById(CREDENTIAL_ID)).thenReturn(entity);
+        when(credentialRepository.findById(CREDENTIAL_ID)).thenReturn(Optional.of(credential));
         when(encryptionEngine.decrypt(any(EncryptedData.class), eq(FAKE_DEK)))
                 .thenReturn(currentPassword.getBytes(StandardCharsets.UTF_8));
         when(encryptionEngine.encrypt(any(byte[].class), eq(FAKE_DEK)))
                 .thenReturn(new EncryptedData(new byte[]{10, 20, 30}, new byte[]{4, 5, 6}));
         when(passwordHistoryMapper.insert(any())).thenReturn(1);
         when(passwordHistoryMapper.selectCount(any())).thenReturn(1L);
-        when(credentialMapper.updateById(any())).thenReturn(1);
 
-        UpdateCredentialRequest request = UpdateCredentialRequest.builder()
-                .password(newPassword)
-                .build();
+        UpdateCredentialCommand command = UpdateCredentialCommand.builder()
+                .password(newPassword).build();
 
-        var response = service.updateCredential(USER_ID, CREDENTIAL_ID, request);
-        assertThat(response).isNotNull();
-        assertThat(response.getAccountName()).isEqualTo("TestAccount");
+        Credential result = service.updateCredential(USER_ID, CREDENTIAL_ID, command);
+        assertThat(result).isNotNull();
+        assertThat(result.getAccountName()).isEqualTo("TestAccount");
     }
-
-    // --- Providers ---
 
     @Provide
     Arbitrary<String> nonBlankPasswords() {
-        return Arbitraries.strings()
-                .ofMinLength(1)
-                .ofMaxLength(64)
-                .alpha()
-                .numeric();
+        return Arbitraries.strings().ofMinLength(1).ofMaxLength(64).alpha().numeric();
     }
 
     @Provide
@@ -157,7 +127,6 @@ class SamePasswordRejectionPropertyTest {
         return nonBlankPasswords().flatMap(current ->
                 nonBlankPasswords()
                         .filter(newPwd -> !newPwd.equals(current))
-                        .map(newPwd -> new String[]{current, newPwd})
-        );
+                        .map(newPwd -> new String[]{current, newPwd}));
     }
 }

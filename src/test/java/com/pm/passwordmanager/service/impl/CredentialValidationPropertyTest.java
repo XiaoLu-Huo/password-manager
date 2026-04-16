@@ -1,4 +1,4 @@
-package com.pm.passwordmanager.domain.service.impl;
+package com.pm.passwordmanager.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -7,16 +7,18 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.pm.passwordmanager.api.dto.request.CreateCredentialRequest;
-import com.pm.passwordmanager.api.dto.response.CredentialResponse;
-import com.pm.passwordmanager.exception.BusinessException;
-import com.pm.passwordmanager.exception.ErrorCode;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.CredentialMapper;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.PasswordHistoryMapper;
+import com.pm.passwordmanager.domain.assembler.CredentialModelAssembler;
+import com.pm.passwordmanager.domain.command.CreateCredentialCommand;
+import com.pm.passwordmanager.domain.model.Credential;
+import com.pm.passwordmanager.domain.repository.CredentialRepository;
 import com.pm.passwordmanager.domain.service.PasswordGeneratorService;
 import com.pm.passwordmanager.domain.service.SessionService;
+import com.pm.passwordmanager.domain.service.impl.CredentialServiceImpl;
+import com.pm.passwordmanager.exception.BusinessException;
+import com.pm.passwordmanager.exception.ErrorCode;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptedData;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptionEngine;
+import com.pm.passwordmanager.infrastructure.persistence.mapper.PasswordHistoryMapper;
 
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
@@ -28,8 +30,6 @@ import net.jqwik.api.Provide;
 
 /**
  * Property 7: 凭证必填字段验证
- * 验证：账户名称、用户名、密码三个必填字段均非空时创建成功，缺少任一则失败。
- *
  * Validates: Requirements 3.1, 3.6
  */
 @Label("Feature: password-manager, Property 7: 凭证必填字段验证")
@@ -38,31 +38,41 @@ class CredentialValidationPropertyTest {
     private static final Long USER_ID = 1L;
     private static final byte[] FAKE_DEK = new byte[32];
 
-    private final CredentialMapper credentialMapper = mock(CredentialMapper.class);
+    private final CredentialRepository credentialRepository = mock(CredentialRepository.class);
     private final PasswordHistoryMapper passwordHistoryMapper = mock(PasswordHistoryMapper.class);
     private final EncryptionEngine encryptionEngine = mock(EncryptionEngine.class);
     private final SessionService sessionService = mock(SessionService.class);
     private final PasswordGeneratorService passwordGeneratorService = mock(PasswordGeneratorService.class);
+    private final CredentialModelAssembler credentialModelAssembler = mock(CredentialModelAssembler.class);
 
     private final CredentialServiceImpl service = new CredentialServiceImpl(
-            credentialMapper, passwordHistoryMapper, encryptionEngine, sessionService, passwordGeneratorService);
+            credentialRepository, passwordHistoryMapper, encryptionEngine,
+            sessionService, passwordGeneratorService, credentialModelAssembler);
 
     CredentialValidationPropertyTest() {
-        // Session is active and DEK is available
         when(sessionService.getDek(USER_ID)).thenReturn(FAKE_DEK);
         when(sessionService.isSessionActive(USER_ID)).thenReturn(true);
-        // Encryption returns a dummy result
         when(encryptionEngine.encrypt(any(byte[].class), eq(FAKE_DEK)))
                 .thenReturn(new EncryptedData(new byte[]{1, 2, 3}, new byte[]{4, 5, 6}));
-        // Mapper insert always succeeds
-        when(credentialMapper.insert(any())).thenReturn(1);
+        when(credentialRepository.save(any(Credential.class))).thenAnswer(inv -> {
+            Credential c = inv.getArgument(0);
+            c.setId(1L);
+            return c;
+        });
+        when(credentialModelAssembler.toModel(any(CreateCredentialCommand.class), eq(USER_ID)))
+                .thenAnswer(inv -> {
+                    CreateCredentialCommand cmd = inv.getArgument(0);
+                    return Credential.builder()
+                            .userId(USER_ID)
+                            .accountName(cmd.getAccountName())
+                            .username(cmd.getUsername())
+                            .url(cmd.getUrl())
+                            .notes(cmd.getNotes())
+                            .tags(cmd.getTags())
+                            .build();
+                });
     }
 
-    /**
-     * 当账户名称、用户名、密码均非空时，创建凭证应成功。
-     *
-     * Validates: Requirements 3.1
-     */
     @Property(tries = 100)
     @Label("should_createSuccessfully_when_allRequiredFieldsPresent")
     void should_createSuccessfully_when_allRequiredFieldsPresent(
@@ -70,53 +80,36 @@ class CredentialValidationPropertyTest {
             @ForAll("nonBlankStrings") String username,
             @ForAll("nonBlankStrings") String password
     ) {
-        CreateCredentialRequest request = CreateCredentialRequest.builder()
-                .accountName(accountName)
-                .username(username)
-                .password(password)
-                .build();
+        CreateCredentialCommand command = CreateCredentialCommand.builder()
+                .accountName(accountName).username(username).password(password).build();
 
-        CredentialResponse response = service.createCredential(USER_ID, request);
+        Credential result = service.createCredential(USER_ID, command);
 
-        assertThat(response).isNotNull();
-        assertThat(response.getAccountName()).isEqualTo(accountName);
-        assertThat(response.getUsername()).isEqualTo(username);
-        assertThat(response.getMaskedPassword()).isEqualTo("••••••");
+        assertThat(result).isNotNull();
+        assertThat(result.getAccountName()).isEqualTo(accountName);
+        assertThat(result.getUsername()).isEqualTo(username);
     }
 
-    /**
-     * 当任一必填字段为空或空白时，创建凭证应抛出 CREDENTIAL_REQUIRED_FIELDS_MISSING 异常。
-     *
-     * Validates: Requirements 3.6
-     */
     @Property(tries = 100)
     @Label("should_rejectCreation_when_anyRequiredFieldMissing")
     void should_rejectCreation_when_anyRequiredFieldMissing(
-            @ForAll("requestsWithMissingField") CreateCredentialRequest request
+            @ForAll("commandsWithMissingField") CreateCredentialCommand command
     ) {
-        assertThatThrownBy(() -> service.createCredential(USER_ID, request))
+        assertThatThrownBy(() -> service.createCredential(USER_ID, command))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.CREDENTIAL_REQUIRED_FIELDS_MISSING));
     }
 
-    // --- Providers ---
-
     @Provide
     Arbitrary<String> nonBlankStrings() {
-        return Arbitraries.strings()
-                .ofMinLength(1)
-                .ofMaxLength(50)
-                .alpha()
-                .numeric();
+        return Arbitraries.strings().ofMinLength(1).ofMaxLength(50).alpha().numeric();
     }
 
     @Provide
-    Arbitrary<CreateCredentialRequest> requestsWithMissingField() {
+    Arbitrary<CreateCredentialCommand> commandsWithMissingField() {
         Arbitrary<String> validStrings = nonBlankStrings();
         Arbitrary<String> blankStrings = Arbitraries.of(null, "", "   ", "\t", "\n");
-
-        // Pick which field (0=accountName, 1=username, 2=password) to make blank
         Arbitrary<Integer> blankFieldIndex = Arbitraries.integers().between(0, 2);
 
         return Combinators.combine(validStrings, validStrings, validStrings, blankStrings, blankFieldIndex)
@@ -124,11 +117,8 @@ class CredentialValidationPropertyTest {
                     String accountName = idx == 0 ? blank : acct;
                     String username = idx == 1 ? blank : user;
                     String password = idx == 2 ? blank : pwd;
-                    return CreateCredentialRequest.builder()
-                            .accountName(accountName)
-                            .username(username)
-                            .password(password)
-                            .build();
+                    return CreateCredentialCommand.builder()
+                            .accountName(accountName).username(username).password(password).build();
                 });
     }
 }

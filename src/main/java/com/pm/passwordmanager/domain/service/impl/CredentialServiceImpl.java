@@ -3,190 +3,145 @@ package com.pm.passwordmanager.domain.service.impl;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.pm.passwordmanager.api.dto.request.CreateCredentialRequest;
 import com.pm.passwordmanager.api.dto.request.GeneratePasswordRequest;
-import com.pm.passwordmanager.api.dto.request.UpdateCredentialRequest;
-import com.pm.passwordmanager.api.dto.response.CredentialListResponse;
-import com.pm.passwordmanager.api.dto.response.CredentialResponse;
-import com.pm.passwordmanager.infrastructure.persistence.entity.CredentialEntity;
-import com.pm.passwordmanager.infrastructure.persistence.entity.PasswordHistoryEntity;
-import com.pm.passwordmanager.exception.BusinessException;
-import com.pm.passwordmanager.exception.ErrorCode;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.CredentialMapper;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.PasswordHistoryMapper;
+import com.pm.passwordmanager.domain.assembler.CredentialModelAssembler;
+import com.pm.passwordmanager.domain.command.CreateCredentialCommand;
+import com.pm.passwordmanager.domain.command.UpdateCredentialCommand;
+import com.pm.passwordmanager.domain.model.Credential;
+import com.pm.passwordmanager.domain.repository.CredentialRepository;
 import com.pm.passwordmanager.domain.service.CredentialService;
 import com.pm.passwordmanager.domain.service.PasswordGeneratorService;
 import com.pm.passwordmanager.domain.service.SessionService;
+import com.pm.passwordmanager.exception.BusinessException;
+import com.pm.passwordmanager.exception.ErrorCode;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptedData;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptionEngine;
+import com.pm.passwordmanager.infrastructure.persistence.entity.PasswordHistoryEntity;
+import com.pm.passwordmanager.infrastructure.persistence.mapper.PasswordHistoryMapper;
 
 import lombok.RequiredArgsConstructor;
 
+/**
+ * 凭证领域服务实现。
+ * 通过领域模型和仓储接口编排业务逻辑，不直接操作 Entity/Mapper。
+ */
 @Service
 @RequiredArgsConstructor
 public class CredentialServiceImpl implements CredentialService {
 
-    private static final String MASKED_PASSWORD = "••••••";
     private static final int MAX_HISTORY_COUNT = 10;
 
-    private final CredentialMapper credentialMapper;
+    private final CredentialRepository credentialRepository;
     private final PasswordHistoryMapper passwordHistoryMapper;
     private final EncryptionEngine encryptionEngine;
     private final SessionService sessionService;
     private final PasswordGeneratorService passwordGeneratorService;
+    private final CredentialModelAssembler credentialModelAssembler;
 
     @Override
     @Transactional
-    public CredentialResponse createCredential(Long userId, CreateCredentialRequest request) {
-        // Resolve password: auto-generate or use provided
-        String password = resolvePassword(request);
+    public Credential createCredential(Long userId, CreateCredentialCommand command) {
+        // 解析密码：自动生成或使用提供的
+        String password = resolvePassword(command);
 
-        // Validate required fields
-        validateRequiredFields(request.getAccountName(), request.getUsername(), password);
+        // Command → Domain Model（MapStruct）
+        Credential credential = credentialModelAssembler.toModel(command, userId);
+        LocalDateTime now = LocalDateTime.now();
+        credential.setCreatedAt(now);
+        credential.setUpdatedAt(now);
 
-        // Encrypt password
+        // 领域模型验证必填字段
+        credential.validateRequiredFields(password);
+
+        // 加密密码
         byte[] dek = getActiveDek(userId);
         EncryptedData encrypted = encryptionEngine.encrypt(
                 password.getBytes(StandardCharsets.UTF_8), dek);
+        credential.updateEncryptedPassword(encrypted.getCiphertext(), encrypted.getIv());
 
-        LocalDateTime now = LocalDateTime.now();
-        CredentialEntity entity = CredentialEntity.builder()
-                .userId(userId)
-                .accountName(request.getAccountName())
-                .username(request.getUsername())
-                .passwordEncrypted(encrypted.getCiphertext())
-                .iv(encrypted.getIv())
-                .url(request.getUrl())
-                .notes(request.getNotes())
-                .tags(request.getTags())
-                .createdAt(now)
-                .updatedAt(now)
-                .build();
-
-        credentialMapper.insert(entity);
-        return toResponse(entity);
+        // 通过仓储持久化
+        return credentialRepository.save(credential);
     }
 
     @Override
-    public List<CredentialListResponse> listCredentials(Long userId) {
+    public List<Credential> listCredentials(Long userId) {
         ensureSessionActive(userId);
-        List<CredentialEntity> entities = credentialMapper.selectList(
-                new LambdaQueryWrapper<CredentialEntity>()
-                        .eq(CredentialEntity::getUserId, userId)
-                        .orderByDesc(CredentialEntity::getUpdatedAt));
-        return entities.stream().map(this::toListResponse).collect(Collectors.toList());
+        return credentialRepository.findByUserId(userId);
     }
 
     @Override
-    public List<CredentialListResponse> searchCredentials(Long userId, String keyword) {
+    public List<Credential> searchCredentials(Long userId, String keyword) {
         ensureSessionActive(userId);
         if (keyword == null || keyword.isBlank()) {
-            return listCredentials(userId);
+            return credentialRepository.findByUserId(userId);
         }
-        List<CredentialEntity> entities = credentialMapper.selectList(
-                new LambdaQueryWrapper<CredentialEntity>()
-                        .eq(CredentialEntity::getUserId, userId)
-                        .and(w -> w
-                                .like(CredentialEntity::getAccountName, keyword)
-                                .or().like(CredentialEntity::getUsername, keyword)
-                                .or().like(CredentialEntity::getUrl, keyword))
-                        .orderByDesc(CredentialEntity::getUpdatedAt));
-        return entities.stream().map(this::toListResponse).collect(Collectors.toList());
+        return credentialRepository.searchByKeyword(userId, keyword);
     }
 
     @Override
-    public List<CredentialListResponse> filterByTag(Long userId, String tag) {
+    public List<Credential> filterByTag(Long userId, String tag) {
         ensureSessionActive(userId);
         if (tag == null || tag.isBlank()) {
-            return listCredentials(userId);
+            return credentialRepository.findByUserId(userId);
         }
-        // Tags are stored as comma-separated values; use LIKE to match
-        List<CredentialEntity> entities = credentialMapper.selectList(
-                new LambdaQueryWrapper<CredentialEntity>()
-                        .eq(CredentialEntity::getUserId, userId)
-                        .like(CredentialEntity::getTags, tag)
-                        .orderByDesc(CredentialEntity::getUpdatedAt));
-        return entities.stream().map(this::toListResponse).collect(Collectors.toList());
+        return credentialRepository.filterByTag(userId, tag);
     }
 
     @Override
-    public CredentialResponse getCredential(Long userId, Long credentialId) {
+    public Credential getCredential(Long userId, Long credentialId) {
         ensureSessionActive(userId);
-        CredentialEntity entity = findCredentialByIdAndUser(userId, credentialId);
-        return toResponse(entity);
+        return findCredentialByUser(userId, credentialId);
     }
 
     @Override
     public String revealPassword(Long userId, Long credentialId) {
         byte[] dek = getActiveDek(userId);
-        CredentialEntity entity = findCredentialByIdAndUser(userId, credentialId);
-        return decryptPassword(entity, dek);
+        Credential credential = findCredentialByUser(userId, credentialId);
+        return decryptPassword(credential, dek);
     }
 
     @Override
     @Transactional
-    public CredentialResponse updateCredential(Long userId, Long credentialId,
-                                                UpdateCredentialRequest request) {
+    public Credential updateCredential(Long userId, Long credentialId, UpdateCredentialCommand command) {
         byte[] dek = getActiveDek(userId);
-        CredentialEntity entity = findCredentialByIdAndUser(userId, credentialId);
+        Credential credential = findCredentialByUser(userId, credentialId);
 
-        // Update non-password fields if provided
-        if (request.getAccountName() != null) {
-            entity.setAccountName(request.getAccountName());
-        }
-        if (request.getUsername() != null) {
-            entity.setUsername(request.getUsername());
-        }
-        if (request.getUrl() != null) {
-            entity.setUrl(request.getUrl());
-        }
-        if (request.getNotes() != null) {
-            entity.setNotes(request.getNotes());
-        }
-        if (request.getTags() != null) {
-            entity.setTags(request.getTags());
-        }
+        // 应用非密码字段更新
+        credential.applyUpdate(
+                command.getAccountName(), command.getUsername(),
+                command.getUrl(), command.getNotes(), command.getTags());
 
-        // Handle password update
-        if (request.getPassword() != null && !request.getPassword().isBlank()) {
-            String newPassword = request.getPassword();
-            String currentPassword = decryptPassword(entity, dek);
+        // 处理密码更新
+        if (command.getPassword() != null && !command.getPassword().isBlank()) {
+            String currentPassword = decryptPassword(credential, dek);
+            credential.validatePasswordChange(command.getPassword(), currentPassword);
 
-            // Reject if new password is same as current
-            if (newPassword.equals(currentPassword)) {
-                throw new BusinessException(ErrorCode.SAME_PASSWORD);
-            }
+            // 记录旧密码到历史
+            recordPasswordHistory(credential);
 
-            // Record old password in history
-            recordPasswordHistory(entity);
-
-            // Encrypt and set new password
+            // 加密新密码
             EncryptedData encrypted = encryptionEngine.encrypt(
-                    newPassword.getBytes(StandardCharsets.UTF_8), dek);
-            entity.setPasswordEncrypted(encrypted.getCiphertext());
-            entity.setIv(encrypted.getIv());
+                    command.getPassword().getBytes(StandardCharsets.UTF_8), dek);
+            credential.updateEncryptedPassword(encrypted.getCiphertext(), encrypted.getIv());
         }
 
-        entity.setUpdatedAt(LocalDateTime.now());
-        credentialMapper.updateById(entity);
-        return toResponse(entity);
+        credentialRepository.updateById(credential);
+        return credential;
     }
 
     @Override
     @Transactional
     public void deleteCredential(Long userId, Long credentialId) {
         ensureSessionActive(userId);
-        CredentialEntity entity = findCredentialByIdAndUser(userId, credentialId);
-        credentialMapper.deleteById(entity.getId());
+        Credential credential = findCredentialByUser(userId, credentialId);
+        credentialRepository.deleteById(credential.getId());
     }
 
-    // ==================== Private helpers ====================
+    // ==================== 私有方法 ====================
 
     private byte[] getActiveDek(Long userId) {
         byte[] dek = sessionService.getDek(userId);
@@ -202,88 +157,52 @@ public class CredentialServiceImpl implements CredentialService {
         }
     }
 
-    private void validateRequiredFields(String accountName, String username, String password) {
-        if (isBlank(accountName) || isBlank(username) || isBlank(password)) {
-            throw new BusinessException(ErrorCode.CREDENTIAL_REQUIRED_FIELDS_MISSING);
-        }
-    }
-
-    private boolean isBlank(String s) {
-        return s == null || s.isBlank();
-    }
-
-    private String resolvePassword(CreateCredentialRequest request) {
-        if (Boolean.TRUE.equals(request.getAutoGenerate())) {
+    private String resolvePassword(CreateCredentialCommand command) {
+        if (Boolean.TRUE.equals(command.getAutoGenerate())) {
             GeneratePasswordRequest genReq = GeneratePasswordRequest.builder()
                     .useDefault(true)
                     .build();
             return passwordGeneratorService.generatePassword(genReq).getPassword();
         }
-        return request.getPassword();
+        return command.getPassword();
     }
 
-    private CredentialEntity findCredentialByIdAndUser(Long userId, Long credentialId) {
-        CredentialEntity entity = credentialMapper.selectById(credentialId);
-        if (entity == null || !entity.getUserId().equals(userId)) {
+    private Credential findCredentialByUser(Long userId, Long credentialId) {
+        Credential credential = credentialRepository.findById(credentialId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CREDENTIAL_NOT_FOUND));
+        if (!credential.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.CREDENTIAL_NOT_FOUND);
         }
-        return entity;
+        return credential;
     }
 
-    private String decryptPassword(CredentialEntity entity, byte[] dek) {
-        EncryptedData encrypted = new EncryptedData(entity.getPasswordEncrypted(), entity.getIv());
+    private String decryptPassword(Credential credential, byte[] dek) {
+        EncryptedData encrypted = new EncryptedData(credential.getPasswordEncrypted(), credential.getIv());
         byte[] plaintext = encryptionEngine.decrypt(encrypted, dek);
         return new String(plaintext, StandardCharsets.UTF_8);
     }
 
-    private void recordPasswordHistory(CredentialEntity entity) {
-        // Save old encrypted password to history
+    private void recordPasswordHistory(Credential credential) {
         PasswordHistoryEntity history = PasswordHistoryEntity.builder()
-                .credentialId(entity.getId())
-                .passwordEncrypted(entity.getPasswordEncrypted())
-                .iv(entity.getIv())
+                .credentialId(credential.getId())
+                .passwordEncrypted(credential.getPasswordEncrypted())
+                .iv(credential.getIv())
                 .createdAt(LocalDateTime.now())
                 .build();
         passwordHistoryMapper.insert(history);
 
-        // Enforce max 10 history records: delete oldest if exceeded
         Long count = passwordHistoryMapper.selectCount(
-                new LambdaQueryWrapper<PasswordHistoryEntity>()
-                        .eq(PasswordHistoryEntity::getCredentialId, entity.getId()));
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PasswordHistoryEntity>()
+                        .eq(PasswordHistoryEntity::getCredentialId, credential.getId()));
         if (count > MAX_HISTORY_COUNT) {
-            // Find the oldest records to delete
             List<PasswordHistoryEntity> oldest = passwordHistoryMapper.selectList(
-                    new LambdaQueryWrapper<PasswordHistoryEntity>()
-                            .eq(PasswordHistoryEntity::getCredentialId, entity.getId())
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PasswordHistoryEntity>()
+                            .eq(PasswordHistoryEntity::getCredentialId, credential.getId())
                             .orderByAsc(PasswordHistoryEntity::getCreatedAt)
                             .last("LIMIT " + (count - MAX_HISTORY_COUNT)));
             for (PasswordHistoryEntity old : oldest) {
                 passwordHistoryMapper.deleteById(old.getId());
             }
         }
-    }
-
-    private CredentialResponse toResponse(CredentialEntity entity) {
-        return CredentialResponse.builder()
-                .id(entity.getId())
-                .accountName(entity.getAccountName())
-                .username(entity.getUsername())
-                .maskedPassword(MASKED_PASSWORD)
-                .url(entity.getUrl())
-                .notes(entity.getNotes())
-                .tags(entity.getTags())
-                .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getUpdatedAt())
-                .build();
-    }
-
-    private CredentialListResponse toListResponse(CredentialEntity entity) {
-        return CredentialListResponse.builder()
-                .id(entity.getId())
-                .accountName(entity.getAccountName())
-                .username(entity.getUsername())
-                .url(entity.getUrl())
-                .tags(entity.getTags())
-                .build();
     }
 }

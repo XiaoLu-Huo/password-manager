@@ -1,6 +1,7 @@
 package com.pm.passwordmanager.api.controller;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,16 +13,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.pm.passwordmanager.api.assembler.CredentialDtoMapper;
 import com.pm.passwordmanager.api.dto.request.CreateCredentialRequest;
 import com.pm.passwordmanager.api.dto.request.UpdateCredentialRequest;
 import com.pm.passwordmanager.api.dto.response.ApiResponse;
 import com.pm.passwordmanager.api.dto.response.CredentialListResponse;
 import com.pm.passwordmanager.api.dto.response.CredentialResponse;
-import com.pm.passwordmanager.infrastructure.persistence.entity.UserEntity;
+import com.pm.passwordmanager.domain.model.Credential;
+import com.pm.passwordmanager.domain.service.CredentialService;
 import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
+import com.pm.passwordmanager.infrastructure.persistence.entity.UserEntity;
 import com.pm.passwordmanager.infrastructure.persistence.mapper.UserMapper;
-import com.pm.passwordmanager.domain.service.CredentialService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -31,7 +34,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * 凭证管理控制器。
- * 提供凭证的创建、查询、搜索、更新、删除以及密码明文查看等 API 端点。
+ * 通过 MapStruct 完成 Request → Command、Model → Response 的转换。
  */
 @RestController
 @RequestMapping("/api/credentials")
@@ -40,74 +43,71 @@ import lombok.RequiredArgsConstructor;
 public class CredentialController {
 
     private final CredentialService credentialService;
+    private final CredentialDtoMapper credentialDtoMapper;
     private final UserMapper userMapper;
 
     @PostMapping
-    @Operation(summary = "创建凭证", description = "创建新凭证，支持自动生成密码")
+    @Operation(summary = "创建凭证")
     public ApiResponse<CredentialResponse> create(@Valid @RequestBody CreateCredentialRequest request) {
         Long userId = getCurrentUserId();
-        CredentialResponse response = credentialService.createCredential(userId, request);
-        return ApiResponse.success(response);
+        Credential credential = credentialService.createCredential(userId, credentialDtoMapper.toCommand(request));
+        return ApiResponse.success(credentialDtoMapper.toResponse(credential));
     }
 
     @GetMapping
-    @Operation(summary = "获取凭证列表", description = "获取当前用户的所有凭证摘要信息")
+    @Operation(summary = "获取凭证列表")
     public ApiResponse<List<CredentialListResponse>> list(
             @Parameter(description = "按标签筛选") @RequestParam(required = false) String tag) {
         Long userId = getCurrentUserId();
-        List<CredentialListResponse> list;
-        if (tag != null && !tag.isBlank()) {
-            list = credentialService.filterByTag(userId, tag);
-        } else {
-            list = credentialService.listCredentials(userId);
-        }
-        return ApiResponse.success(list);
+        List<Credential> credentials = (tag != null && !tag.isBlank())
+                ? credentialService.filterByTag(userId, tag)
+                : credentialService.listCredentials(userId);
+        return ApiResponse.success(credentials.stream()
+                .map(credentialDtoMapper::toListResponse).collect(Collectors.toList()));
     }
 
     @GetMapping("/search")
-    @Operation(summary = "搜索凭证", description = "按关键词搜索凭证（匹配账户名称、用户名或 URL）")
+    @Operation(summary = "搜索凭证")
     public ApiResponse<List<CredentialListResponse>> search(
             @Parameter(description = "搜索关键词", required = true) @RequestParam String keyword) {
         Long userId = getCurrentUserId();
-        List<CredentialListResponse> results = credentialService.searchCredentials(userId, keyword);
-        return ApiResponse.success(results);
+        List<Credential> results = credentialService.searchCredentials(userId, keyword);
+        return ApiResponse.success(results.stream()
+                .map(credentialDtoMapper::toListResponse).collect(Collectors.toList()));
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "获取凭证详情", description = "获取凭证详情，密码以掩码显示")
+    @Operation(summary = "获取凭证详情")
     public ApiResponse<CredentialResponse> get(@PathVariable Long id) {
         Long userId = getCurrentUserId();
-        CredentialResponse response = credentialService.getCredential(userId, id);
-        return ApiResponse.success(response);
+        Credential credential = credentialService.getCredential(userId, id);
+        return ApiResponse.success(credentialDtoMapper.toResponse(credential));
     }
 
     @PostMapping("/{id}/reveal-password")
-    @Operation(summary = "查看密码明文", description = "解密并返回凭证密码明文")
+    @Operation(summary = "查看密码明文")
     public ApiResponse<String> revealPassword(@PathVariable Long id) {
         Long userId = getCurrentUserId();
-        String password = credentialService.revealPassword(userId, id);
-        return ApiResponse.success(password);
+        return ApiResponse.success(credentialService.revealPassword(userId, id));
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "更新凭证", description = "更新凭证信息，密码变更时记录历史")
+    @Operation(summary = "更新凭证")
     public ApiResponse<CredentialResponse> update(
-            @PathVariable Long id,
-            @Valid @RequestBody UpdateCredentialRequest request) {
+            @PathVariable Long id, @Valid @RequestBody UpdateCredentialRequest request) {
         Long userId = getCurrentUserId();
-        CredentialResponse response = credentialService.updateCredential(userId, id, request);
-        return ApiResponse.success(response);
+        Credential credential = credentialService.updateCredential(userId, id, credentialDtoMapper.toCommand(request));
+        return ApiResponse.success(credentialDtoMapper.toResponse(credential));
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "删除凭证", description = "删除指定凭证")
+    @Operation(summary = "删除凭证")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         Long userId = getCurrentUserId();
         credentialService.deleteCredential(userId, id);
         return ApiResponse.success();
     }
 
-    /** 获取当前用户 ID（单用户系统）。 */
     private Long getCurrentUserId() {
         UserEntity user = userMapper.selectOne(null);
         if (user == null) {
