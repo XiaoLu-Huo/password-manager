@@ -2,8 +2,8 @@ package com.pm.passwordmanager.domain.service;
 
 import java.util.List;
 
-import com.pm.passwordmanager.api.dto.request.GeneratePasswordRequest;
 import com.pm.passwordmanager.api.dto.response.GeneratedPasswordResponse;
+import com.pm.passwordmanager.domain.command.GeneratePasswordCommand;
 import com.pm.passwordmanager.domain.model.PasswordRule;
 
 /**
@@ -19,7 +19,7 @@ public interface PasswordGeneratorService {
      * @param request 生成密码请求
      * @return 生成的密码及其强度评估
      */
-    GeneratedPasswordResponse generatePassword(GeneratePasswordRequest request);
+    GeneratedPasswordResponse generatePassword(GeneratePasswordCommand command);
 
     /**
      * 保存自定义密码规则。

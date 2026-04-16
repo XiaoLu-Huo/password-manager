@@ -15,10 +15,10 @@ import static org.mockito.Mockito.when;
 import com.pm.passwordmanager.domain.model.Credential;
 import com.pm.passwordmanager.domain.repository.CredentialRepository;
 import com.pm.passwordmanager.domain.service.PasswordGeneratorService;
+import com.pm.passwordmanager.domain.service.PasswordHistoryService;
 import com.pm.passwordmanager.domain.service.SessionService;
 import com.pm.passwordmanager.domain.service.impl.CredentialServiceImpl;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptionEngine;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.PasswordHistoryMapper;
 
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
@@ -45,13 +45,13 @@ class CredentialSearchPropertyTest {
     @BeforeProperty
     void setUp() {
         credentialRepository = mock(CredentialRepository.class);
-        PasswordHistoryMapper passwordHistoryMapper = mock(PasswordHistoryMapper.class);
+        PasswordHistoryService passwordHistoryService = mock(PasswordHistoryService.class);
         EncryptionEngine encryptionEngine = mock(EncryptionEngine.class);
         SessionService sessionService = mock(SessionService.class);
         PasswordGeneratorService passwordGeneratorService = mock(PasswordGeneratorService.class);
 
         service = new CredentialServiceImpl(
-                credentialRepository, passwordHistoryMapper, encryptionEngine, sessionService, passwordGeneratorService, null);
+                credentialRepository, passwordHistoryService, encryptionEngine, sessionService, passwordGeneratorService, null);
 
         when(sessionService.getDek(USER_ID)).thenReturn(new byte[32]);
         when(sessionService.isSessionActive(USER_ID)).thenReturn(true);

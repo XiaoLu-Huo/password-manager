@@ -188,23 +188,23 @@
     - _需求: 3.1 ~ 3.7, 4.1 ~ 4.6, 5.1 ~ 5.7_
 
 - [ ] 8. 实现密码历史查询
-  - [ ] 8.1 实现 `PasswordHistoryService` 及 `PasswordHistoryServiceImpl`
+  - [x] 8.1 实现 `PasswordHistoryService` 及 `PasswordHistoryServiceImpl`
     - 实现获取凭证密码历史（最近 10 条，按时间倒序）
     - 实现历史密码明文查看（解密后返回，前端 30 秒后恢复掩码）
     - 实现密码变更记录（由 CredentialService 调用，超过 10 条删除最早记录）
     - _需求: 5.2, 5.3, 9.1 ~ 9.6_
 
-  - [ ] 8.2 编写密码更新记录历史属性测试
+  - [x] 8.2 编写密码更新记录历史属性测试
     - **Property 11: 密码更新记录历史并保持上限**
     - 验证：旧密码被记录，历史不超过 10 条，修改时间被更新
     - **验证需求: 5.2, 5.3, 5.4, 9.5**
 
-  - [ ] 8.3 编写密码历史排序与完整性属性测试
+  - [x] 8.3 编写密码历史排序与完整性属性测试
     - **Property 20: 密码历史排序与完整性**
     - 验证：历史记录按变更时间降序排列，每条包含掩码密码和变更时间
     - **验证需求: 9.1, 9.2**
 
-  - [ ] 8.4 实现 `PasswordHistoryController`
+  - [x] 8.4 实现 `PasswordHistoryController`
     - 实现 `GET /api/credentials/{id}/password-history`、`POST /api/credentials/{id}/password-history/{historyId}/reveal` 端点
     - _需求: 9.1 ~ 9.6_
 

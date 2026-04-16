@@ -5,9 +5,9 @@ import java.util.Base64;
 
 import org.springframework.stereotype.Service;
 
-import com.pm.passwordmanager.api.dto.request.CreateMasterPasswordRequest;
-import com.pm.passwordmanager.api.dto.request.UnlockVaultRequest;
 import com.pm.passwordmanager.api.dto.response.UnlockResultResponse;
+import com.pm.passwordmanager.domain.command.SetupMasterPasswordCommand;
+import com.pm.passwordmanager.domain.command.UnlockVaultCommand;
 import com.pm.passwordmanager.domain.model.User;
 import com.pm.passwordmanager.domain.repository.UserRepository;
 import com.pm.passwordmanager.domain.service.AuthService;
@@ -40,8 +40,8 @@ public class AuthServiceImpl implements AuthService {
     private final java.util.concurrent.ConcurrentHashMap<Long, byte[]> pendingMfaDek = new java.util.concurrent.ConcurrentHashMap<>();
 
     @Override
-    public void setup(CreateMasterPasswordRequest request) {
-        String masterPassword = request.getMasterPassword();
+    public void setup(SetupMasterPasswordCommand command) {
+        String masterPassword = command.getMasterPassword();
 
         // 1. 验证密码复杂度（委托给领域模型）
         User.validatePasswordComplexity(masterPassword);
@@ -79,8 +79,8 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public UnlockResultResponse unlock(UnlockVaultRequest request) {
-        String masterPassword = request.getMasterPassword();
+    public UnlockResultResponse unlock(UnlockVaultCommand command) {
+        String masterPassword = command.getMasterPassword();
 
         // 1. 查询用户记录（单用户系统，取第一条）
         User user = getUser();

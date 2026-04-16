@@ -15,13 +15,13 @@ import com.pm.passwordmanager.domain.command.UpdateCredentialCommand;
 import com.pm.passwordmanager.domain.model.Credential;
 import com.pm.passwordmanager.domain.repository.CredentialRepository;
 import com.pm.passwordmanager.domain.service.PasswordGeneratorService;
+import com.pm.passwordmanager.domain.service.PasswordHistoryService;
 import com.pm.passwordmanager.domain.service.SessionService;
 import com.pm.passwordmanager.domain.service.impl.CredentialServiceImpl;
 import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptedData;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptionEngine;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.PasswordHistoryMapper;
 
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
@@ -42,13 +42,13 @@ class SamePasswordRejectionPropertyTest {
     private static final byte[] FAKE_DEK = new byte[32];
 
     private final CredentialRepository credentialRepository = mock(CredentialRepository.class);
-    private final PasswordHistoryMapper passwordHistoryMapper = mock(PasswordHistoryMapper.class);
+    private final PasswordHistoryService passwordHistoryService = mock(PasswordHistoryService.class);
     private final EncryptionEngine encryptionEngine = mock(EncryptionEngine.class);
     private final SessionService sessionService = mock(SessionService.class);
     private final PasswordGeneratorService passwordGeneratorService = mock(PasswordGeneratorService.class);
 
     private final CredentialServiceImpl service = new CredentialServiceImpl(
-            credentialRepository, passwordHistoryMapper, encryptionEngine, sessionService, passwordGeneratorService, null);
+            credentialRepository, passwordHistoryService, encryptionEngine, sessionService, passwordGeneratorService, null);
 
     SamePasswordRejectionPropertyTest() {
         when(sessionService.getDek(USER_ID)).thenReturn(FAKE_DEK);
@@ -106,8 +106,6 @@ class SamePasswordRejectionPropertyTest {
                 .thenReturn(currentPassword.getBytes(StandardCharsets.UTF_8));
         when(encryptionEngine.encrypt(any(byte[].class), eq(FAKE_DEK)))
                 .thenReturn(new EncryptedData(new byte[]{10, 20, 30}, new byte[]{4, 5, 6}));
-        when(passwordHistoryMapper.insert(any())).thenReturn(1);
-        when(passwordHistoryMapper.selectCount(any())).thenReturn(1L);
 
         UpdateCredentialCommand command = UpdateCredentialCommand.builder()
                 .password(newPassword).build();

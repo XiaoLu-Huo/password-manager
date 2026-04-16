@@ -21,8 +21,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.pm.passwordmanager.api.dto.request.CreateMasterPasswordRequest;
-import com.pm.passwordmanager.api.dto.request.UnlockVaultRequest;
+import com.pm.passwordmanager.domain.command.SetupMasterPasswordCommand;
+import com.pm.passwordmanager.domain.command.UnlockVaultCommand;
 import com.pm.passwordmanager.api.dto.response.UnlockResultResponse;
 import com.pm.passwordmanager.domain.model.User;
 import com.pm.passwordmanager.domain.repository.UserRepository;
@@ -67,7 +67,7 @@ class AuthServiceImplTest {
 
     @Test
     void should_createMasterPassword_when_passwordMeetsComplexity() {
-        CreateMasterPasswordRequest request = CreateMasterPasswordRequest.builder()
+        SetupMasterPasswordCommand request = SetupMasterPasswordCommand.builder()
                 .masterPassword("MyStr0ng!Pass")
                 .build();
 
@@ -92,7 +92,7 @@ class AuthServiceImplTest {
 
     @Test
     void should_rejectSetup_when_passwordTooShort() {
-        CreateMasterPasswordRequest request = CreateMasterPasswordRequest.builder()
+        SetupMasterPasswordCommand request = SetupMasterPasswordCommand.builder()
                 .masterPassword("Short1!")
                 .build();
 
@@ -104,7 +104,7 @@ class AuthServiceImplTest {
 
     @Test
     void should_rejectSetup_when_passwordLacksCharacterTypes() {
-        CreateMasterPasswordRequest request = CreateMasterPasswordRequest.builder()
+        SetupMasterPasswordCommand request = SetupMasterPasswordCommand.builder()
                 .masterPassword("abcdefghijkl")
                 .build();
 
@@ -116,7 +116,7 @@ class AuthServiceImplTest {
 
     @Test
     void should_rejectSetup_when_passwordHasOnlyTwoTypes() {
-        CreateMasterPasswordRequest request = CreateMasterPasswordRequest.builder()
+        SetupMasterPasswordCommand request = SetupMasterPasswordCommand.builder()
                 .masterPassword("AbcdefghijkL")
                 .build();
 
@@ -130,7 +130,7 @@ class AuthServiceImplTest {
 
     @Test
     void should_unlockVault_when_correctPassword() {
-        UnlockVaultRequest request = UnlockVaultRequest.builder()
+        UnlockVaultCommand request = UnlockVaultCommand.builder()
                 .masterPassword("MyStr0ng!Pass")
                 .build();
 
@@ -163,7 +163,7 @@ class AuthServiceImplTest {
 
     @Test
     void should_rejectUnlock_when_masterPasswordIsWrong() {
-        UnlockVaultRequest request = UnlockVaultRequest.builder()
+        UnlockVaultCommand request = UnlockVaultCommand.builder()
                 .masterPassword("WrongPassword1!")
                 .build();
 
@@ -192,7 +192,7 @@ class AuthServiceImplTest {
 
     @Test
     void should_lockAccount_when_fiveConsecutiveFailures() {
-        UnlockVaultRequest request = UnlockVaultRequest.builder()
+        UnlockVaultCommand request = UnlockVaultCommand.builder()
                 .masterPassword("WrongPassword1!")
                 .build();
 
@@ -223,7 +223,7 @@ class AuthServiceImplTest {
 
     @Test
     void should_rejectUnlock_when_accountIsLocked() {
-        UnlockVaultRequest request = UnlockVaultRequest.builder()
+        UnlockVaultCommand request = UnlockVaultCommand.builder()
                 .masterPassword("MyStr0ng!Pass")
                 .build();
 
@@ -249,7 +249,7 @@ class AuthServiceImplTest {
 
     @Test
     void should_allowUnlock_when_lockoutPeriodExpired() {
-        UnlockVaultRequest request = UnlockVaultRequest.builder()
+        UnlockVaultCommand request = UnlockVaultCommand.builder()
                 .masterPassword("MyStr0ng!Pass")
                 .build();
 
@@ -278,7 +278,7 @@ class AuthServiceImplTest {
 
     @Test
     void should_resetFailedAttempts_when_correctPasswordAfterFailures() {
-        UnlockVaultRequest request = UnlockVaultRequest.builder()
+        UnlockVaultCommand request = UnlockVaultCommand.builder()
                 .masterPassword("MyStr0ng!Pass")
                 .build();
 

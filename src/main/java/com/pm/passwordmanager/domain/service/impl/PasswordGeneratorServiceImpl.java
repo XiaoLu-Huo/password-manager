@@ -6,8 +6,8 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.pm.passwordmanager.api.dto.request.GeneratePasswordRequest;
 import com.pm.passwordmanager.api.dto.response.GeneratedPasswordResponse;
+import com.pm.passwordmanager.domain.command.GeneratePasswordCommand;
 import com.pm.passwordmanager.domain.model.PasswordRule;
 import com.pm.passwordmanager.domain.repository.PasswordRuleRepository;
 import com.pm.passwordmanager.domain.service.PasswordGeneratorService;
@@ -33,25 +33,25 @@ public class PasswordGeneratorServiceImpl implements PasswordGeneratorService {
     private final PasswordRuleRepository passwordRuleRepository;
 
     @Override
-    public GeneratedPasswordResponse generatePassword(GeneratePasswordRequest request) {
+    public GeneratedPasswordResponse generatePassword(GeneratePasswordCommand command) {
         int length;
         boolean includeUppercase;
         boolean includeLowercase;
         boolean includeDigits;
         boolean includeSpecial;
 
-        if (Boolean.TRUE.equals(request.getUseDefault())) {
+        if (Boolean.TRUE.equals(command.getUseDefault())) {
             length = DEFAULT_LENGTH;
             includeUppercase = true;
             includeLowercase = true;
             includeDigits = true;
             includeSpecial = true;
         } else {
-            length = request.getLength() != null ? request.getLength() : DEFAULT_LENGTH;
-            includeUppercase = Boolean.TRUE.equals(request.getIncludeUppercase());
-            includeLowercase = Boolean.TRUE.equals(request.getIncludeLowercase());
-            includeDigits = Boolean.TRUE.equals(request.getIncludeDigits());
-            includeSpecial = Boolean.TRUE.equals(request.getIncludeSpecial());
+            length = command.getLength() != null ? command.getLength() : DEFAULT_LENGTH;
+            includeUppercase = Boolean.TRUE.equals(command.getIncludeUppercase());
+            includeLowercase = Boolean.TRUE.equals(command.getIncludeLowercase());
+            includeDigits = Boolean.TRUE.equals(command.getIncludeDigits());
+            includeSpecial = Boolean.TRUE.equals(command.getIncludeSpecial());
         }
 
         validateGenerationParams(length, includeUppercase, includeLowercase, includeDigits, includeSpecial);

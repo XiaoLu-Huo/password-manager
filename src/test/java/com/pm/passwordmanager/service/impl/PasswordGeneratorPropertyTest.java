@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Arrays;
 import java.util.List;
 
-import com.pm.passwordmanager.api.dto.request.GeneratePasswordRequest;
+import com.pm.passwordmanager.domain.command.GeneratePasswordCommand;
 import com.pm.passwordmanager.api.dto.response.GeneratedPasswordResponse;
 import com.pm.passwordmanager.domain.repository.PasswordRuleRepository;
 import com.pm.passwordmanager.infrastructure.encryption.PasswordStrengthEvaluator;
@@ -57,7 +57,7 @@ class PasswordGeneratorPropertyTest {
     void should_generatePasswordMatchingConfig_when_validRuleProvided(
             @ForAll("validPasswordConfigs") PasswordConfig config
     ) {
-        GeneratePasswordRequest request = GeneratePasswordRequest.builder()
+        GeneratePasswordCommand command = GeneratePasswordCommand.builder()
                 .length(config.length)
                 .includeUppercase(config.includeUppercase)
                 .includeLowercase(config.includeLowercase)
@@ -66,7 +66,7 @@ class PasswordGeneratorPropertyTest {
                 .useDefault(false)
                 .build();
 
-        GeneratedPasswordResponse response = service.generatePassword(request);
+        GeneratedPasswordResponse response = service.generatePassword(command);
         String password = response.getPassword();
 
         // 1. Length equals configured length

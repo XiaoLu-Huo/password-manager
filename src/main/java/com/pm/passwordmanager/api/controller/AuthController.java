@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.pm.passwordmanager.api.assembler.AuthDtoMapper;
 import com.pm.passwordmanager.api.dto.request.CreateMasterPasswordRequest;
 import com.pm.passwordmanager.api.dto.request.EnableMfaRequest;
 import com.pm.passwordmanager.api.dto.request.UnlockVaultRequest;
@@ -32,20 +33,21 @@ import lombok.RequiredArgsConstructor;
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthDtoMapper authDtoMapper;
     private final MfaService mfaService;
     private final SessionService sessionService;
 
     @PostMapping("/setup")
     @Operation(summary = "首次创建主密码")
     public ApiResponse<Void> setup(@Valid @RequestBody CreateMasterPasswordRequest request) {
-        authService.setup(request);
+        authService.setup(authDtoMapper.toCommand(request));
         return ApiResponse.success();
     }
 
     @PostMapping("/unlock")
     @Operation(summary = "解锁密码库")
     public ApiResponse<UnlockResultResponse> unlock(@Valid @RequestBody UnlockVaultRequest request) {
-        return ApiResponse.success(authService.unlock(request));
+        return ApiResponse.success(authService.unlock(authDtoMapper.toCommand(request)));
     }
 
     @PostMapping("/verify-totp")

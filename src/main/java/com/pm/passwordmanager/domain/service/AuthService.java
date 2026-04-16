@@ -1,8 +1,8 @@
 package com.pm.passwordmanager.domain.service;
 
-import com.pm.passwordmanager.api.dto.request.CreateMasterPasswordRequest;
-import com.pm.passwordmanager.api.dto.request.UnlockVaultRequest;
 import com.pm.passwordmanager.api.dto.response.UnlockResultResponse;
+import com.pm.passwordmanager.domain.command.SetupMasterPasswordCommand;
+import com.pm.passwordmanager.domain.command.UnlockVaultCommand;
 
 /**
  * 认证服务接口。
@@ -20,16 +20,16 @@ public interface AuthService {
      *
      * @param request 创建主密码请求
      */
-    void setup(CreateMasterPasswordRequest request);
+    void setup(SetupMasterPasswordCommand command);
 
     /**
      * 解锁密码库。
      * 流程：检查锁定状态 → 验证密码 → 检查 MFA → 派生 KEK → 解密 DEK → 存入会话（或等待 TOTP）
      *
-     * @param request 解锁请求
+     * @param command 解锁命令
      * @return 解锁结果（包含是否需要 MFA 验证等信息）
      */
-    UnlockResultResponse unlock(UnlockVaultRequest request);
+    UnlockResultResponse unlock(UnlockVaultCommand command);
 
     /**
      * 验证 TOTP 码并完成解锁（MFA 启用时的第二步）。

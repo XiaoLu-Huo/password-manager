@@ -14,6 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.pm.passwordmanager.api.assembler.AuthDtoMapper;
 import com.pm.passwordmanager.api.dto.request.CreateMasterPasswordRequest;
 import com.pm.passwordmanager.api.dto.request.EnableMfaRequest;
 import com.pm.passwordmanager.api.dto.request.UnlockVaultRequest;
@@ -21,6 +22,8 @@ import com.pm.passwordmanager.api.dto.request.VerifyTotpRequest;
 import com.pm.passwordmanager.api.dto.response.ApiResponse;
 import com.pm.passwordmanager.api.dto.response.MfaSetupResponse;
 import com.pm.passwordmanager.api.dto.response.UnlockResultResponse;
+import com.pm.passwordmanager.domain.command.SetupMasterPasswordCommand;
+import com.pm.passwordmanager.domain.command.UnlockVaultCommand;
 import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
 import com.pm.passwordmanager.domain.service.AuthService;
@@ -33,6 +36,8 @@ class AuthControllerTest {
     @Mock
     private AuthService authService;
     @Mock
+    private AuthDtoMapper authDtoMapper;
+    @Mock
     private MfaService mfaService;
     @Mock
     private SessionService sessionService;
@@ -44,20 +49,26 @@ class AuthControllerTest {
     void should_returnSuccess_when_setupWithValidPassword() {
         CreateMasterPasswordRequest request = CreateMasterPasswordRequest.builder()
                 .masterPassword("MyStr0ng!Pass").build();
-        doNothing().when(authService).setup(request);
+        SetupMasterPasswordCommand command = SetupMasterPasswordCommand.builder()
+                .masterPassword("MyStr0ng!Pass").build();
+        when(authDtoMapper.toCommand(request)).thenReturn(command);
+        doNothing().when(authService).setup(command);
 
         ApiResponse<Void> response = authController.setup(request);
 
         assertThat(response.getCode()).isEqualTo(0);
-        verify(authService).setup(request);
+        verify(authService).setup(command);
     }
 
     @Test
     void should_propagateException_when_setupWithWeakPassword() {
         CreateMasterPasswordRequest request = CreateMasterPasswordRequest.builder()
                 .masterPassword("weak").build();
+        SetupMasterPasswordCommand command = SetupMasterPasswordCommand.builder()
+                .masterPassword("weak").build();
+        when(authDtoMapper.toCommand(request)).thenReturn(command);
         doThrow(new BusinessException(ErrorCode.MASTER_PASSWORD_TOO_WEAK))
-                .when(authService).setup(request);
+                .when(authService).setup(command);
 
         org.junit.jupiter.api.Assertions.assertThrows(BusinessException.class,
                 () -> authController.setup(request));
@@ -67,9 +78,12 @@ class AuthControllerTest {
     void should_returnUnlockResult_when_unlockWithCorrectPassword() {
         UnlockVaultRequest request = UnlockVaultRequest.builder()
                 .masterPassword("MyStr0ng!Pass").build();
+        UnlockVaultCommand command = UnlockVaultCommand.builder()
+                .masterPassword("MyStr0ng!Pass").build();
         UnlockResultResponse unlockResult = UnlockResultResponse.builder()
                 .mfaRequired(false).build();
-        when(authService.unlock(request)).thenReturn(unlockResult);
+        when(authDtoMapper.toCommand(request)).thenReturn(command);
+        when(authService.unlock(command)).thenReturn(unlockResult);
 
         ApiResponse<UnlockResultResponse> response = authController.unlock(request);
 
@@ -81,7 +95,10 @@ class AuthControllerTest {
     void should_returnMfaRequired_when_unlockWithMfaEnabled() {
         UnlockVaultRequest request = UnlockVaultRequest.builder()
                 .masterPassword("MyStr0ng!Pass").build();
-        when(authService.unlock(request)).thenReturn(
+        UnlockVaultCommand command = UnlockVaultCommand.builder()
+                .masterPassword("MyStr0ng!Pass").build();
+        when(authDtoMapper.toCommand(request)).thenReturn(command);
+        when(authService.unlock(command)).thenReturn(
                 UnlockResultResponse.builder().mfaRequired(true).build());
 
         assertThat(authController.unlock(request).getData().isMfaRequired()).isTrue();

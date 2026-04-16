@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Optional;
 
-import com.pm.passwordmanager.api.dto.request.UnlockVaultRequest;
+import com.pm.passwordmanager.domain.command.UnlockVaultCommand;
 import com.pm.passwordmanager.domain.model.User;
 import com.pm.passwordmanager.domain.repository.UserRepository;
 import com.pm.passwordmanager.exception.BusinessException;
@@ -92,7 +92,7 @@ class AccountLockoutPropertyTest {
         int attemptsNeeded = MAX_FAILED_ATTEMPTS - initialFailures;
 
         for (int i = 0; i < attemptsNeeded; i++) {
-            UnlockVaultRequest request = UnlockVaultRequest.builder()
+            UnlockVaultCommand request = UnlockVaultCommand.builder()
                     .masterPassword("WrongPassword" + i)
                     .build();
 
@@ -130,7 +130,7 @@ class AccountLockoutPropertyTest {
 
         when(userRepository.findFirst()).thenReturn(Optional.of(user));
 
-        UnlockVaultRequest request = UnlockVaultRequest.builder()
+        UnlockVaultCommand request = UnlockVaultCommand.builder()
                 .masterPassword("CorrectPassword123!")
                 .build();
 
@@ -164,7 +164,7 @@ class AccountLockoutPropertyTest {
         when(argon2Hasher.verify(any(), any(), any())).thenReturn(false);
 
         for (int i = 0; i < totalFailures; i++) {
-            UnlockVaultRequest request = UnlockVaultRequest.builder()
+            UnlockVaultCommand request = UnlockVaultCommand.builder()
                     .masterPassword("WrongPassword" + i)
                     .build();
 
@@ -204,7 +204,7 @@ class AccountLockoutPropertyTest {
         when(argon2Hasher.deriveKey(any(), any(), anyInt())).thenReturn(testKek);
         when(encryptionEngine.decrypt(any(EncryptedData.class), any())).thenReturn(testDek);
 
-        UnlockVaultRequest request = UnlockVaultRequest.builder()
+        UnlockVaultCommand request = UnlockVaultCommand.builder()
                 .masterPassword("CorrectPassword123!")
                 .build();
 

@@ -7,7 +7,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.pm.passwordmanager.api.dto.request.GeneratePasswordRequest;
+import com.pm.passwordmanager.domain.command.GeneratePasswordCommand;
 import com.pm.passwordmanager.domain.assembler.CredentialModelAssembler;
 import com.pm.passwordmanager.domain.command.CreateCredentialCommand;
 import com.pm.passwordmanager.domain.command.UpdateCredentialCommand;
@@ -15,13 +15,12 @@ import com.pm.passwordmanager.domain.model.Credential;
 import com.pm.passwordmanager.domain.repository.CredentialRepository;
 import com.pm.passwordmanager.domain.service.CredentialService;
 import com.pm.passwordmanager.domain.service.PasswordGeneratorService;
+import com.pm.passwordmanager.domain.service.PasswordHistoryService;
 import com.pm.passwordmanager.domain.service.SessionService;
 import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptedData;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptionEngine;
-import com.pm.passwordmanager.infrastructure.persistence.entity.PasswordHistoryEntity;
-import com.pm.passwordmanager.infrastructure.persistence.mapper.PasswordHistoryMapper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -33,10 +32,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class CredentialServiceImpl implements CredentialService {
 
-    private static final int MAX_HISTORY_COUNT = 10;
-
     private final CredentialRepository credentialRepository;
-    private final PasswordHistoryMapper passwordHistoryMapper;
+    private final PasswordHistoryService passwordHistoryService;
     private final EncryptionEngine encryptionEngine;
     private final SessionService sessionService;
     private final PasswordGeneratorService passwordGeneratorService;
@@ -121,7 +118,8 @@ public class CredentialServiceImpl implements CredentialService {
             credential.validatePasswordChange(command.getPassword(), currentPassword);
 
             // 记录旧密码到历史
-            recordPasswordHistory(credential);
+            passwordHistoryService.recordPasswordChange(
+                    credential.getId(), credential.getPasswordEncrypted(), credential.getIv());
 
             // 加密新密码
             EncryptedData encrypted = encryptionEngine.encrypt(
@@ -159,10 +157,10 @@ public class CredentialServiceImpl implements CredentialService {
 
     private String resolvePassword(CreateCredentialCommand command) {
         if (Boolean.TRUE.equals(command.getAutoGenerate())) {
-            GeneratePasswordRequest genReq = GeneratePasswordRequest.builder()
+            GeneratePasswordCommand genCmd = GeneratePasswordCommand.builder()
                     .useDefault(true)
                     .build();
-            return passwordGeneratorService.generatePassword(genReq).getPassword();
+            return passwordGeneratorService.generatePassword(genCmd).getPassword();
         }
         return command.getPassword();
     }
@@ -180,29 +178,5 @@ public class CredentialServiceImpl implements CredentialService {
         EncryptedData encrypted = new EncryptedData(credential.getPasswordEncrypted(), credential.getIv());
         byte[] plaintext = encryptionEngine.decrypt(encrypted, dek);
         return new String(plaintext, StandardCharsets.UTF_8);
-    }
-
-    private void recordPasswordHistory(Credential credential) {
-        PasswordHistoryEntity history = PasswordHistoryEntity.builder()
-                .credentialId(credential.getId())
-                .passwordEncrypted(credential.getPasswordEncrypted())
-                .iv(credential.getIv())
-                .createdAt(LocalDateTime.now())
-                .build();
-        passwordHistoryMapper.insert(history);
-
-        Long count = passwordHistoryMapper.selectCount(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PasswordHistoryEntity>()
-                        .eq(PasswordHistoryEntity::getCredentialId, credential.getId()));
-        if (count > MAX_HISTORY_COUNT) {
-            List<PasswordHistoryEntity> oldest = passwordHistoryMapper.selectList(
-                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PasswordHistoryEntity>()
-                            .eq(PasswordHistoryEntity::getCredentialId, credential.getId())
-                            .orderByAsc(PasswordHistoryEntity::getCreatedAt)
-                            .last("LIMIT " + (count - MAX_HISTORY_COUNT)));
-            for (PasswordHistoryEntity old : oldest) {
-                passwordHistoryMapper.deleteById(old.getId());
-            }
-        }
     }
 }

@@ -15,7 +15,7 @@ import static org.mockito.Mockito.when;
 import java.util.Base64;
 import java.util.Optional;
 
-import com.pm.passwordmanager.api.dto.request.UnlockVaultRequest;
+import com.pm.passwordmanager.domain.command.UnlockVaultCommand;
 import com.pm.passwordmanager.api.dto.response.UnlockResultResponse;
 import com.pm.passwordmanager.domain.model.User;
 import com.pm.passwordmanager.domain.repository.UserRepository;
@@ -103,7 +103,7 @@ class MfaEnforcementPropertyTest {
         stubCorrectPassword();
         when(mfaService.isMfaEnabled(anyLong())).thenReturn(true);
 
-        UnlockVaultRequest request = UnlockVaultRequest.builder()
+        UnlockVaultCommand request = UnlockVaultCommand.builder()
                 .masterPassword(masterPassword)
                 .build();
 
@@ -128,7 +128,7 @@ class MfaEnforcementPropertyTest {
         when(mfaService.isMfaEnabled(anyLong())).thenReturn(true);
         when(mfaService.verifyTotp(anyLong(), anyString())).thenReturn(false);
 
-        UnlockVaultRequest request = UnlockVaultRequest.builder()
+        UnlockVaultCommand request = UnlockVaultCommand.builder()
                 .masterPassword(masterPassword)
                 .build();
         UnlockResultResponse unlockResult = authService.unlock(request);
@@ -155,7 +155,7 @@ class MfaEnforcementPropertyTest {
         when(mfaService.isMfaEnabled(anyLong())).thenReturn(true);
         when(mfaService.verifyTotp(anyLong(), eq(validTotpCode))).thenReturn(true);
 
-        UnlockVaultRequest request = UnlockVaultRequest.builder()
+        UnlockVaultCommand request = UnlockVaultCommand.builder()
                 .masterPassword(masterPassword)
                 .build();
         UnlockResultResponse unlockResult = authService.unlock(request);
@@ -180,7 +180,7 @@ class MfaEnforcementPropertyTest {
         stubCorrectPassword();
         when(mfaService.isMfaEnabled(anyLong())).thenReturn(false);
 
-        UnlockVaultRequest request = UnlockVaultRequest.builder()
+        UnlockVaultCommand request = UnlockVaultCommand.builder()
                 .masterPassword(masterPassword)
                 .build();
 
