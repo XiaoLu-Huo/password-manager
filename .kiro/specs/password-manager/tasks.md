@@ -209,19 +209,19 @@
     - _需求: 9.1 ~ 9.6_
 
 - [ ] 9. 实现安全报告
-  - [ ] 9.1 实现 `SecurityReportService` 及 `SecurityReportServiceImpl`
+  - [x] 9.1 实现 `SecurityReportService` 及 `SecurityReportServiceImpl`
     - 实现弱密码检测（解密后评估强度）
     - 实现重复密码检测（比较解密后的密码）
     - 实现超期未更新检测（最后修改时间超过 90 天）
     - 实现安全报告统计（总凭证数、弱密码数、重复密码数、超期数）
     - _需求: 6.1 ~ 6.5_
 
-  - [ ] 9.2 编写安全报告统计一致性属性测试
+  - [x] 9.2 编写安全报告统计一致性属性测试
     - **Property 14: 安全报告统计一致性**
     - 验证：弱密码列表、重复密码列表、超期列表与统计数字一致
     - **验证需求: 6.2, 6.3, 6.4, 6.5**
 
-  - [ ] 9.3 实现 `SecurityReportController`
+  - [x] 9.3 实现 `SecurityReportController`
     - 实现 `GET /api/security-report`、`GET /api/security-report/weak`、`GET /api/security-report/duplicate`、`GET /api/security-report/expired` 端点
     - _需求: 6.1 ~ 6.5_
 
@@ -262,6 +262,7 @@
 
 - [ ] 13. 搭建 Electron 桌面应用前端
   - [ ] 13.1 初始化 Electron + React + TypeScript 项目
+    - 前端项目需要与后端项目的保持平级的目录，即将后端项目的内容调整到/Users/xiaoluhuo/Desktop/lu/twpassword目录下，然后前端项目也放到当前目录下
     - 创建 Electron 项目结构（main、renderer、preload）
     - 配置 TypeScript、Webpack/Vite 打包
     - 创建 `preload.ts` 安全桥接脚本
