@@ -183,7 +183,7 @@
     - 验证：新密码与当前密码相同时更新被拒绝
     - **验证需求: 5.5**
 
-  - [ ] 7.6 实现 `CredentialController`
+  - [x] 7.6 实现 `CredentialController`
     - 实现 `POST /api/credentials`、`GET /api/credentials`、`GET /api/credentials/{id}`、`PUT /api/credentials/{id}`、`DELETE /api/credentials/{id}`、`GET /api/credentials/search` 端点
     - _需求: 3.1 ~ 3.7, 4.1 ~ 4.6, 5.1 ~ 5.7_
 
