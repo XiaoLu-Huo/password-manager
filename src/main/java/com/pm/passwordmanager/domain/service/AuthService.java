@@ -45,4 +45,11 @@ public interface AuthService {
      * @return 用户 ID
      */
     Long getCurrentUserId();
+
+    /**
+     * 检查主密码是否已设置（用户记录是否存在）。
+     *
+     * @return true 表示已初始化，false 表示需要首次设置
+     */
+    boolean isInitialized();
 }

@@ -159,6 +159,11 @@ public class AuthServiceImpl implements AuthService {
         return getUser().getId();
     }
 
+    @Override
+    public boolean isInitialized() {
+        return userRepository.findFirst().isPresent();
+    }
+
     private User getUser() {
         return userRepository.findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.VAULT_LOCKED));

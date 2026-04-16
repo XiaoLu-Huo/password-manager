@@ -1,5 +1,6 @@
 package com.pm.passwordmanager.api.controller;
 
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -36,6 +37,12 @@ public class AuthController {
     private final AuthDtoMapper authDtoMapper;
     private final MfaService mfaService;
     private final SessionService sessionService;
+
+    @GetMapping("/status")
+    @Operation(summary = "检查主密码是否已设置")
+    public ApiResponse<Boolean> status() {
+        return ApiResponse.success(authService.isInitialized());
+    }
 
     @PostMapping("/setup")
     @Operation(summary = "首次创建主密码")
