@@ -12,6 +12,7 @@ import com.pm.passwordmanager.api.dto.response.SettingsResponse;
 import com.pm.passwordmanager.domain.model.User;
 import com.pm.passwordmanager.domain.repository.UserRepository;
 import com.pm.passwordmanager.domain.service.AuthService;
+import com.pm.passwordmanager.domain.service.MfaService;
 import com.pm.passwordmanager.domain.service.SessionService;
 import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
@@ -34,17 +35,19 @@ public class SettingsController {
     private final AuthService authService;
     private final SessionService sessionService;
     private final UserRepository userRepository;
+    private final MfaService mfaService;
 
     @GetMapping
-    @Operation(summary = "获取用户设置", description = "返回当前用户的设置信息，包括自动锁定超时时间")
+    @Operation(summary = "获取用户设置", description = "返回当前用户的设置信息，包括自动锁定超时时间和 MFA 状态")
     public ApiResponse<SettingsResponse> getSettings() {
-        authService.getCurrentUserId();
+        Long userId = authService.getCurrentUserId();
         User user = userRepository.findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.INTERNAL_ERROR));
 
         Integer autoLock = user.getAutoLockMinutes();
         SettingsResponse response = SettingsResponse.builder()
                 .autoLockMinutes(autoLock != null ? autoLock : 5)
+                .mfaEnabled(mfaService.isMfaEnabled(userId))
                 .build();
         return ApiResponse.success(response);
     }

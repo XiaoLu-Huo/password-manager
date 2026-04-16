@@ -15,4 +15,7 @@ public class SettingsResponse {
 
     @Schema(description = "自动锁定超时时间（分钟）", example = "5")
     private Integer autoLockMinutes;
+
+    @Schema(description = "MFA 是否已启用")
+    private boolean mfaEnabled;
 }

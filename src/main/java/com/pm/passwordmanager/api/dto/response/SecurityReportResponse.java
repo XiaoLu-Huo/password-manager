@@ -19,6 +19,9 @@ public class SecurityReportResponse {
     @Schema(description = "弱密码数量", example = "5")
     private int weakPasswordCount;
 
+    @Schema(description = "中等强度密码数量", example = "10")
+    private int mediumPasswordCount;
+
     @Schema(description = "重复密码数量", example = "3")
     private int duplicatePasswordCount;
 

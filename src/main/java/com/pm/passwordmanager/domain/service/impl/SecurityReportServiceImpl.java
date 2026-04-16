@@ -3,6 +3,7 @@ package com.pm.passwordmanager.domain.service.impl;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,11 +24,6 @@ import com.pm.passwordmanager.infrastructure.encryption.PasswordStrengthEvaluato
 
 import lombok.RequiredArgsConstructor;
 
-/**
- * 安全报告服务实现。
- * 解密凭证密码后进行弱密码、重复密码、超期未更新检测。
- * 返回领域模型，由 Controller 层通过 DtoMapper 转换为 DTO。
- */
 @Service
 @RequiredArgsConstructor
 public class SecurityReportServiceImpl implements SecurityReportService {
@@ -44,23 +40,24 @@ public class SecurityReportServiceImpl implements SecurityReportService {
         byte[] dek = getActiveDek(userId);
         List<Credential> credentials = credentialRepository.findByUserId(userId);
 
-        int weakCount = 0;
+        Map<PasswordStrengthLevel, Integer> strengthCounts = new EnumMap<>(PasswordStrengthLevel.class);
+        for (PasswordStrengthLevel level : PasswordStrengthLevel.values()) {
+            strengthCounts.put(level, 0);
+        }
+
         int duplicateCount = 0;
         int expiredCount = 0;
         LocalDateTime expiryThreshold = LocalDateTime.now().minusDays(EXPIRED_DAYS);
-
         Map<String, List<Credential>> passwordGroups = new HashMap<>();
+
         for (Credential c : credentials) {
             String plainPassword = decryptPassword(c, dek);
-
-            if (passwordStrengthEvaluator.evaluate(plainPassword) == PasswordStrengthLevel.WEAK) {
-                weakCount++;
-            }
+            PasswordStrengthLevel level = passwordStrengthEvaluator.evaluate(plainPassword);
+            strengthCounts.merge(level, 1, Integer::sum);
 
             if (c.getUpdatedAt() != null && c.getUpdatedAt().isBefore(expiryThreshold)) {
                 expiredCount++;
             }
-
             passwordGroups.computeIfAbsent(plainPassword, k -> new ArrayList<>()).add(c);
         }
 
@@ -72,21 +69,22 @@ public class SecurityReportServiceImpl implements SecurityReportService {
 
         return SecurityReportResponse.builder()
                 .totalCredentials(credentials.size())
-                .weakPasswordCount(weakCount)
+                .weakPasswordCount(strengthCounts.get(PasswordStrengthLevel.WEAK))
+                .mediumPasswordCount(strengthCounts.get(PasswordStrengthLevel.MEDIUM))
                 .duplicatePasswordCount(duplicateCount)
                 .expiredPasswordCount(expiredCount)
                 .build();
     }
 
     @Override
-    public List<Credential> getWeakPasswordCredentials(Long userId) {
+    public List<Credential> getCredentialsByStrengthLevel(Long userId, PasswordStrengthLevel level) {
         byte[] dek = getActiveDek(userId);
         List<Credential> credentials = credentialRepository.findByUserId(userId);
         List<Credential> result = new ArrayList<>();
 
         for (Credential c : credentials) {
             String plainPassword = decryptPassword(c, dek);
-            if (passwordStrengthEvaluator.evaluate(plainPassword) == PasswordStrengthLevel.WEAK) {
+            if (passwordStrengthEvaluator.evaluate(plainPassword) == level) {
                 result.add(c);
             }
         }

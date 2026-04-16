@@ -92,7 +92,8 @@ class SecurityReportPropertyTest {
 
         // Get report and detail lists
         SecurityReportResponse report = service.getReport(USER_ID);
-        List<Credential> weakList = service.getWeakPasswordCredentials(USER_ID);
+        List<Credential> weakList = service.getCredentialsByStrengthLevel(USER_ID, PasswordStrengthLevel.WEAK);
+        List<Credential> mediumList = service.getCredentialsByStrengthLevel(USER_ID, PasswordStrengthLevel.MEDIUM);
         List<Credential> duplicateList = service.getDuplicatePasswordCredentials(USER_ID);
         List<Credential> expiredList = service.getExpiredPasswordCredentials(USER_ID);
 
@@ -101,6 +102,9 @@ class SecurityReportPropertyTest {
 
         // Property: weak password count matches weak list size
         assertThat(report.getWeakPasswordCount()).isEqualTo(weakList.size());
+
+        // Property: medium password count matches medium list size
+        assertThat(report.getMediumPasswordCount()).isEqualTo(mediumList.size());
 
         // Property: duplicate password count matches duplicate list size
         assertThat(report.getDuplicatePasswordCount()).isEqualTo(duplicateList.size());
@@ -112,6 +116,12 @@ class SecurityReportPropertyTest {
         for (Credential r : weakList) {
             String plain = passwordMap.get(r.getId());
             assertThat(passwordStrengthEvaluator.evaluate(plain)).isEqualTo(PasswordStrengthLevel.WEAK);
+        }
+
+        // Property: medium list contains exactly the credentials with MEDIUM strength
+        for (Credential r : mediumList) {
+            String plain = passwordMap.get(r.getId());
+            assertThat(passwordStrengthEvaluator.evaluate(plain)).isEqualTo(PasswordStrengthLevel.MEDIUM);
         }
 
         // Property: expired list contains exactly credentials updated > 90 days ago
