@@ -24,12 +24,15 @@ inclusion: auto
 com.pm.passwordmanager/
 ├── api/                              # 接口层（对外暴露）
 │   ├── controller/                   # REST 控制器
+│   ├── assembler/                    # DTO 映射器（MapStruct，Request↔Command、Model→Response）
 │   ├── dto/                          # 请求/响应 DTO
 │   │   ├── request/                  # 请求对象 (XxxRequest)
 │   │   └── response/                 # 响应对象 (XxxResponse, ApiResponse)
 │   └── enums/                        # API 层枚举 (ConflictStrategy, PasswordStrengthLevel)
 ├── domain/                           # 领域层（核心业务逻辑）
 │   ├── model/                        # 充血领域模型（包含业务行为）
+│   ├── command/                      # 命令对象（封装业务操作入参）
+│   ├── assembler/                    # 领域层映射器（Command→Model）
 │   ├── service/                      # 领域服务接口 + 实现
 │   │   └── impl/                     # 领域服务实现
 │   └── repository/                   # 仓储接口（面向领域定义）
@@ -79,7 +82,66 @@ com.pm.passwordmanager/
 
 ## 3. 编码规范
 
-### 3.1 Controller 层
+### 3.1 分层职责与数据流转（核心规则）
+
+本项目严格遵循以下数据流转规则，所有模块必须一致执行：
+
+```
+Request DTO → [api/assembler DtoMapper] → Command → Service → Domain Model → [api/assembler DtoMapper] → Response DTO
+```
+
+各层职责边界：
+
+| 层 | 输入 | 输出 | 职责 |
+|----|------|------|------|
+| Controller (api) | Request DTO | Response DTO (ApiResponse\<T\>) | 参数接收、身份获取、通过 DtoMapper 做 DTO↔Command/Model 转换、结果返回 |
+| DtoMapper (api/assembler) | Request / Model | Command / Response | MapStruct 接口，负责 Request→Command 和 Model→Response 的转换 |
+| ModelAssembler (domain/assembler) | Command | Domain Model | MapStruct 接口，负责 Command→Domain Model 的转换 |
+| Service (domain/service) | Command / 基本类型 | Domain Model / 基本类型 | 编排领域模型和仓储，执行业务逻辑 |
+| Repository (domain/repository) | Domain Model | Domain Model | 面向领域模型的持久化接口 |
+| RepositoryImpl (infrastructure) | Domain Model | Domain Model | Entity↔Model 转换 + MyBatis-Plus 操作 |
+
+关键约束（必须遵守）：
+
+1. Service 接口的参数使用 Command 对象或基本类型（Long userId 等），不接收 Request DTO
+2. Service 接口的返回值使用 Domain Model 或基本类型，不返回 Response DTO
+3. DTO↔Model 的转换只在 Controller 层通过 DtoMapper 完成，Service 层禁止构建或依赖任何 DTO
+4. 即使某个模块没有 Request 入参（如安全报告的纯查询接口），Service 也必须返回 Domain Model，由 Controller 通过 DtoMapper 转换为 Response DTO
+5. 如果多个模块共用同一个 Domain Model（如 Credential），可以复用已有的 DtoMapper（如 CredentialDtoMapper），无需为每个模块单独创建
+
+反面示例（禁止）：
+```java
+// ❌ Service 直接返回 DTO
+public interface SecurityReportService {
+    List<CredentialListResponse> getWeakPasswordCredentials(Long userId);
+}
+
+// ❌ ServiceImpl 内部手动构建 DTO
+private CredentialListResponse toListResponse(Credential c) {
+    return CredentialListResponse.builder()
+            .id(c.getId())
+            .accountName(c.getAccountName())
+            .build();
+}
+```
+
+正确示例：
+```java
+// ✅ Service 返回 Domain Model
+public interface SecurityReportService {
+    List<Credential> getWeakPasswordCredentials(Long userId);
+}
+
+// ✅ Controller 通过 DtoMapper 转换
+@GetMapping("/weak")
+public ApiResponse<List<CredentialListResponse>> getWeakPasswordCredentials() {
+    Long userId = authService.getCurrentUserId();
+    return ApiResponse.success(securityReportService.getWeakPasswordCredentials(userId).stream()
+            .map(credentialDtoMapper::toListResponse).collect(Collectors.toList()));
+}
+```
+
+### 3.2 Controller 层
 
 ```java
 @RestController
@@ -89,13 +151,27 @@ com.pm.passwordmanager/
 public class CredentialController {
 
     private final CredentialService credentialService;
-    private final UserMapper userMapper;
+    private final CredentialDtoMapper credentialDtoMapper;
+    private final AuthService authService;
 
     @PostMapping
-    @Operation(summary = "创建凭证", description = "创建新凭证，支持自动生成密码")
+    @Operation(summary = "创建凭证")
     public ApiResponse<CredentialResponse> create(@Valid @RequestBody CreateCredentialRequest request) {
-        Long userId = getCurrentUserId();
-        return ApiResponse.success(credentialService.createCredential(userId, request));
+        Long userId = authService.getCurrentUserId();
+        Credential credential = credentialService.createCredential(userId, credentialDtoMapper.toCommand(request));
+        return ApiResponse.success(credentialDtoMapper.toResponse(credential));
+    }
+
+    @GetMapping
+    @Operation(summary = "获取凭证列表")
+    public ApiResponse<List<CredentialListResponse>> list(
+            @Parameter(description = "按标签筛选") @RequestParam(required = false) String tag) {
+        Long userId = authService.getCurrentUserId();
+        List<Credential> credentials = (tag != null && !tag.isBlank())
+                ? credentialService.filterByTag(userId, tag)
+                : credentialService.listCredentials(userId);
+        return ApiResponse.success(credentials.stream()
+                .map(credentialDtoMapper::toListResponse).collect(Collectors.toList()));
     }
 }
 ```
@@ -104,13 +180,65 @@ public class CredentialController {
 - 使用 `@RequiredArgsConstructor` 构造器注入，禁止 `@Autowired` 字段注入
 - 使用 `@Operation` + `@Tag` 生成 API 文档
 - 使用 `@Valid` / `@Validated` 进行参数校验
-- Controller 只做参数接收、用户身份获取和结果返回，不包含业务逻辑
+- Controller 只做参数接收、用户身份获取、DtoMapper 转换和结果返回，不包含业务逻辑
 - 统一返回 `ApiResponse<T>` 包装
+- 通过 `authService.getCurrentUserId()` 获取当前用户 ID
+- Request → Command 转换通过 DtoMapper 的 `toCommand()` 方法
+- Model → Response 转换通过 DtoMapper 的 `toResponse()` / `toListResponse()` 方法
 
-### 3.2 领域模型
+### 3.3 DtoMapper（api/assembler）
+
+```java
+@Mapper(componentModel = "spring")
+public interface CredentialDtoMapper {
+
+    // Request → Command
+    CreateCredentialCommand toCommand(CreateCredentialRequest request);
+    UpdateCredentialCommand toCommand(UpdateCredentialRequest request);
+
+    // Domain Model → Response DTO
+    @Mapping(target = "maskedPassword", constant = "••••••")
+    CredentialResponse toResponse(Credential credential);
+
+    CredentialListResponse toListResponse(Credential credential);
+}
+```
+
+规则：
+- 使用 MapStruct `@Mapper(componentModel = "spring")` 自动生成实现
+- 每个业务模块对应一个 DtoMapper：`AuthDtoMapper`、`CredentialDtoMapper`、`PasswordGenDtoMapper`、`PasswordHistoryDtoMapper`
+- 如果其他模块需要转换同一个 Domain Model（如安全报告模块需要转换 Credential），直接复用已有的 DtoMapper，不重复创建
+- DtoMapper 只放在 `api/assembler/` 包下，属于接口层
+
+### 3.4 Command 对象（domain/command）
+
+```java
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class CreateCredentialCommand {
+    private String accountName;
+    private String username;
+    private String password;
+    private String url;
+    private String notes;
+    private String tags;
+    private Boolean autoGenerate;
+}
+```
+
+规则：
+- Command 对象封装业务操作的入参，位于 `domain/command/` 包
+- 使用 `@Data` + `@Builder` + `@NoArgsConstructor` + `@AllArgsConstructor`
+- Command 不包含业务逻辑，仅作为数据载体
+- Service 接口方法接收 Command 而非 Request DTO
+
+### 3.5 领域模型（domain/model）
 
 ```java
 @Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -119,14 +247,7 @@ public class Credential {
     private Long id;
     private Long userId;
     private String accountName;
-    private String username;
-    private byte[] passwordEncrypted;
-    private byte[] iv;
-    private String url;
-    private String notes;
-    private String tags;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    // ...
 
     /** 验证必填字段完整性。 */
     public void validateRequiredFields(String plainPassword) {
@@ -135,12 +256,11 @@ public class Credential {
         }
     }
 
-    /** 检查标签是否包含指定值。 */
-    public boolean hasTag(String tag) {
-        if (tags == null || tag == null) return false;
-        return List.of(tags.split(",")).stream()
-                .map(String::trim)
-                .anyMatch(t -> t.equalsIgnoreCase(tag));
+    /** 验证新密码与当前密码不同。 */
+    public void validatePasswordChange(String newPassword, String currentPassword) {
+        if (newPassword.equals(currentPassword)) {
+            throw new BusinessException(ErrorCode.SAME_PASSWORD);
+        }
     }
 }
 ```
@@ -150,7 +270,48 @@ public class Credential {
 - 使用 `@Builder` 构建对象
 - 业务规则校验内聚在领域模型中
 
-### 3.3 仓储模式
+### 3.6 领域服务（domain/service）
+
+```java
+// domain/service/ — 接口，入参用 Command/基本类型，返回 Domain Model
+public interface CredentialService {
+    Credential createCredential(Long userId, CreateCredentialCommand command);
+    List<Credential> listCredentials(Long userId);
+    Credential getCredential(Long userId, Long credentialId);
+    String revealPassword(Long userId, Long credentialId);
+    Credential updateCredential(Long userId, Long credentialId, UpdateCredentialCommand command);
+    void deleteCredential(Long userId, Long credentialId);
+}
+
+// domain/service/impl/ — 实现
+@Service
+@RequiredArgsConstructor
+public class CredentialServiceImpl implements CredentialService {
+
+    private final CredentialRepository credentialRepository;
+    private final EncryptionEngine encryptionEngine;
+    private final SessionService sessionService;
+    private final CredentialModelAssembler credentialModelAssembler;
+
+    @Override
+    @Transactional
+    public Credential createCredential(Long userId, CreateCredentialCommand command) {
+        Credential credential = credentialModelAssembler.toModel(command, userId);
+        // 业务逻辑编排...
+        return credentialRepository.save(credential);
+    }
+}
+```
+
+规则：
+- 服务接口定义在 `domain/service/`，实现在 `domain/service/impl/`
+- 服务接口的入参使用 Command 对象或基本类型，禁止使用 Request DTO
+- 服务接口的返回值使用 Domain Model 或基本类型，禁止返回 Response DTO
+- 使用 `@Transactional` 管理事务，只在 Service 层标注
+- 领域服务编排领域模型、仓储和基础设施组件
+- Command → Domain Model 转换通过 `domain/assembler/` 中的 ModelAssembler 完成
+
+### 3.7 仓储模式
 
 ```java
 // domain/repository/ — 接口定义，面向领域模型
@@ -187,39 +348,7 @@ public class CredentialRepositoryImpl implements CredentialRepository {
 - 仓储实现在 `infrastructure/persistence/repository/`，负责 Entity ↔ Domain Model 转换
 - 转换逻辑简单时直接在 RepositoryImpl 中用私有方法实现，复杂时可抽取 Assembler 类
 
-### 3.4 领域服务
-
-```java
-// domain/service/ — 接口
-public interface CredentialService {
-    CredentialResponse createCredential(Long userId, CreateCredentialRequest request);
-    List<CredentialListResponse> listCredentials(Long userId);
-    // ...
-}
-
-// domain/service/impl/ — 实现
-@Service
-@RequiredArgsConstructor
-public class CredentialServiceImpl implements CredentialService {
-
-    private final CredentialRepository credentialRepository;
-    private final EncryptionEngine encryptionEngine;
-    private final SessionService sessionService;
-
-    @Override
-    @Transactional
-    public CredentialResponse createCredential(Long userId, CreateCredentialRequest request) {
-        // 编排领域模型和仓储
-    }
-}
-```
-
-规则：
-- 服务接口定义在 `domain/service/`，实现在 `domain/service/impl/`
-- 使用 `@Transactional` 管理事务，只在 Service 层标注
-- 领域服务编排领域模型、仓储和基础设施组件
-
-### 3.5 数据库实体
+### 3.8 数据库实体
 
 ```java
 @Data
@@ -248,7 +377,7 @@ public class CredentialEntity {
 - 使用 `@TableField` 显式映射列名
 - 实体是纯数据载体，不包含业务逻辑
 
-### 3.6 MyBatis-Plus Mapper
+### 3.9 MyBatis-Plus Mapper
 
 ```java
 @Mapper
@@ -261,7 +390,7 @@ public interface CredentialMapper extends BaseMapper<CredentialEntity> {
 - 复杂查询使用 `LambdaQueryWrapper` 在仓储实现中构建
 - Mapper XML 放在 `classpath:/mapper/` 下（仅在需要复杂 SQL 时使用）
 
-### 3.7 异常处理
+### 3.10 异常处理
 
 ```java
 // 抛出业务异常
@@ -274,15 +403,18 @@ throw new BusinessException(ErrorCode.SAME_PASSWORD);
 - 通过 `GlobalExceptionHandler`（`@RestControllerAdvice`）统一捕获并返回 `ApiResponse`
 - 不在 Controller 中 try-catch 业务异常
 
-### 3.8 命名规范
+### 3.11 命名规范
 
 | 类型 | 后缀 | 位置 | 示例 |
 |------|------|------|------|
 | 控制器 | Controller | api/controller/ | CredentialController |
+| DTO 映射器 | DtoMapper | api/assembler/ | CredentialDtoMapper, AuthDtoMapper |
 | 请求 DTO | Request | api/dto/request/ | CreateCredentialRequest |
 | 响应 DTO | Response | api/dto/response/ | CredentialResponse |
 | 统一响应 | ApiResponse | api/dto/response/ | ApiResponse\<T\> |
+| 命令对象 | Command | domain/command/ | CreateCredentialCommand |
 | 领域模型 | 业务名称（无后缀） | domain/model/ | Credential, User |
+| 领域层映射器 | ModelAssembler | domain/assembler/ | CredentialModelAssembler |
 | 领域服务接口 | Service | domain/service/ | CredentialService |
 | 领域服务实现 | ServiceImpl | domain/service/impl/ | CredentialServiceImpl |
 | 仓储接口 | Repository | domain/repository/ | CredentialRepository |
@@ -292,7 +424,7 @@ throw new BusinessException(ErrorCode.SAME_PASSWORD);
 | 加密工具 | （按职责命名） | infrastructure/encryption/ | EncryptionEngine, Argon2Hasher |
 | 枚举 | （按业务命名） | api/enums/ | ConflictStrategy, PasswordStrengthLevel |
 
-### 3.9 通用编码原则
+### 3.12 通用编码原则
 
 - 使用 `@RequiredArgsConstructor` + `private final` 进行构造器注入
 - 使用 `Optional` 处理可能为 null 的返回值，禁止返回 null 集合（返回空集合）
@@ -361,17 +493,22 @@ throw new BusinessException(ErrorCode.SAME_PASSWORD);
   - `src/test/java/com/pm/passwordmanager/controller/` — 控制器测试
 - 属性测试使用 `@Property(tries = 100)` + `@Provide` 自定义生成器
 - 测试引擎配置：`useJUnitPlatform { includeEngines 'junit-jupiter', 'jqwik' }`
+- 属性测试中 Service 层测试应基于 Domain Model 断言，不应依赖 Response DTO（因为 Service 返回的是 Domain Model）
 
 ## 8. 新增功能开发检查清单
 
 1. 在 `domain/model/` 创建或修改充血领域模型，业务规则内聚在模型中
-2. 在 `domain/repository/` 定义仓储接口
-3. 在 `domain/service/` 定义领域服务接口，在 `domain/service/impl/` 编写实现
-4. 在 `infrastructure/persistence/entity/` 创建数据库实体
-5. 在 `infrastructure/persistence/mapper/` 创建 MyBatis-Plus Mapper
-6. 在 `infrastructure/persistence/repository/` 实现仓储接口（含 Entity ↔ Domain Model 转换）
-7. 在 `api/dto/request/` 和 `api/dto/response/` 定义请求/响应 DTO
-8. 在 `api/controller/` 创建 Controller
-9. 数据库变更通过 Flyway 迁移脚本管理
-10. 错误码在 `exception/ErrorCode.java` 中新增常量
-11. 编写属性测试验证核心正确性属性，编写单元测试覆盖边界条件
+2. 在 `domain/command/` 创建 Command 对象封装业务操作入参（如有写操作）
+3. 在 `domain/assembler/` 创建 ModelAssembler（MapStruct）做 Command → Domain Model 转换（如有 Command）
+4. 在 `domain/repository/` 定义仓储接口（面向 Domain Model）
+5. 在 `domain/service/` 定义领域服务接口（入参用 Command/基本类型，返回 Domain Model/基本类型）
+6. 在 `domain/service/impl/` 编写服务实现，编排领域模型和仓储
+7. 在 `infrastructure/persistence/entity/` 创建数据库实体
+8. 在 `infrastructure/persistence/mapper/` 创建 MyBatis-Plus Mapper
+9. 在 `infrastructure/persistence/repository/` 实现仓储接口（含 Entity ↔ Domain Model 转换）
+10. 在 `api/dto/request/` 和 `api/dto/response/` 定义请求/响应 DTO
+11. 在 `api/assembler/` 创建 DtoMapper（MapStruct）做 Request → Command 和 Model → Response 转换；如果复用已有 Domain Model，直接复用已有的 DtoMapper
+12. 在 `api/controller/` 创建 Controller，通过 DtoMapper 做所有 DTO 转换
+13. 数据库变更通过 Flyway 迁移脚本管理
+14. 错误码在 `exception/ErrorCode.java` 中新增常量
+15. 编写属性测试验证核心正确性属性（基于 Domain Model 断言），编写单元测试覆盖边界条件
