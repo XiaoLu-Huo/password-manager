@@ -59,4 +59,20 @@ public interface SessionService {
      * @return 超时时间（分钟），默认 5 分钟
      */
     int getAutoLockTimeout(Long userId);
+
+    /**
+     * 生成会话令牌并关联到用户。
+     *
+     * @param userId 用户 ID
+     * @return 生成的会话令牌
+     */
+    String generateToken(Long userId);
+
+    /**
+     * 根据会话令牌获取用户 ID。
+     *
+     * @param token 会话令牌
+     * @return 用户 ID，令牌无效或会话过期返回 null
+     */
+    Long getUserIdByToken(String token);
 }

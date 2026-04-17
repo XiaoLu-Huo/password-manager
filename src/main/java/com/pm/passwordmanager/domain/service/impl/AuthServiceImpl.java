@@ -19,6 +19,8 @@ import com.pm.passwordmanager.infrastructure.encryption.Argon2Hasher;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptedData;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptionEngine;
 
+import com.pm.passwordmanager.infrastructure.config.SessionContextHolder;
+
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -121,7 +123,7 @@ public class AuthServiceImpl implements AuthService {
 
         return UnlockResultResponse.builder()
                 .mfaRequired(false)
-                .sessionToken("authenticated")
+                .sessionToken(sessionService.generateToken(user.getId()))
                 .build();
     }
 
@@ -150,12 +152,18 @@ public class AuthServiceImpl implements AuthService {
 
         return UnlockResultResponse.builder()
                 .mfaRequired(false)
-                .sessionToken("authenticated")
+                .sessionToken(sessionService.generateToken(user.getId()))
                 .build();
     }
 
     @Override
     public Long getCurrentUserId() {
+        // Prefer the userId set by SessionInterceptor (token-validated)
+        Long userId = SessionContextHolder.getCurrentUserId();
+        if (userId != null) {
+            return userId;
+        }
+        // Fallback for non-intercepted paths (e.g., setup/unlock)
         return getUser().getId();
     }
 
