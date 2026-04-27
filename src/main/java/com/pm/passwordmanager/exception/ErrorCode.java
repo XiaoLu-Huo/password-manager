@@ -21,6 +21,11 @@ public enum ErrorCode {
     MFA_NOT_ENABLED(20007, "MFA 未启用"),
     SESSION_EXPIRED(20008, "会话已过期，请重新解锁"),
     VAULT_LOCKED(20009, "密码库已锁定，请先解锁"),
+    USERNAME_DUPLICATE(20010, "用户名已被占用"),
+    EMAIL_DUPLICATE(20011, "邮箱已被占用"),
+    USERNAME_INVALID_FORMAT(20012, "用户名格式不合法"),
+    EMAIL_INVALID_FORMAT(20013, "邮箱格式不合法"),
+    CREDENTIALS_INVALID(20014, "用户名或密码错误"),
 
     // 凭证错误 (3xxxx)
     CREDENTIAL_NOT_FOUND(30001, "凭证不存在"),

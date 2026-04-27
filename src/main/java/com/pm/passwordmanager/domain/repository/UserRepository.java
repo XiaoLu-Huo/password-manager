@@ -12,6 +12,12 @@ public interface UserRepository {
     /** 查询第一个用户（单用户系统）。 */
     Optional<User> findFirst();
 
+    /** 按用户名查找用户。 */
+    Optional<User> findByUsername(String username);
+
+    /** 按邮箱查找用户。 */
+    Optional<User> findByEmail(String email);
+
     /** 保存新用户。 */
     User save(User user);
 

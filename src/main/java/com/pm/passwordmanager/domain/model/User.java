@@ -25,7 +25,14 @@ public class User {
     private static final int MAX_FAILED_ATTEMPTS = 5;
     private static final int LOCKOUT_MINUTES = 15;
 
+    private static final java.util.regex.Pattern USERNAME_PATTERN =
+            java.util.regex.Pattern.compile("^[a-zA-Z0-9_-]{3,32}$");
+    private static final java.util.regex.Pattern EMAIL_PATTERN =
+            java.util.regex.Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+
     private Long id;
+    private String username;
+    private String email;
     private String masterPasswordHash;
     private String salt;
     private byte[] encryptionKeyEncrypted;
@@ -34,6 +41,24 @@ public class User {
     private Integer autoLockMinutes;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    /**
+     * 验证用户名格式：3-32 字符，仅允许字母、数字、下划线、连字符。
+     */
+    public static void validateUsername(String username) {
+        if (username == null || !USERNAME_PATTERN.matcher(username).matches()) {
+            throw new BusinessException(ErrorCode.USERNAME_INVALID_FORMAT);
+        }
+    }
+
+    /**
+     * 验证邮箱格式：基本邮箱格式校验。
+     */
+    public static void validateEmail(String email) {
+        if (email == null || !EMAIL_PATTERN.matcher(email).matches()) {
+            throw new BusinessException(ErrorCode.EMAIL_INVALID_FORMAT);
+        }
+    }
 
     /**
      * 验证主密码复杂度：长度 ≥ 12，且包含大写字母、小写字母、数字、特殊字符中的至少三种。

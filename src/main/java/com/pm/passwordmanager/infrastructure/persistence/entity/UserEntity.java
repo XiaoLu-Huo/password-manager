@@ -22,6 +22,12 @@ public class UserEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    @TableField("username")
+    private String username;
+
+    @TableField("email")
+    private String email;
+
     @TableField("master_password_hash")
     private String masterPasswordHash;
 

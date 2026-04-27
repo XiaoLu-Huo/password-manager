@@ -4,6 +4,7 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.pm.passwordmanager.domain.model.User;
 import com.pm.passwordmanager.domain.repository.UserRepository;
 import com.pm.passwordmanager.infrastructure.persistence.assembler.UserAssembler;
@@ -25,6 +26,22 @@ public class UserRepositoryImpl implements UserRepository {
     @Override
     public Optional<User> findFirst() {
         return Optional.ofNullable(userMapper.selectOne(null))
+                .map(assembler::toDomain);
+    }
+
+    @Override
+    public Optional<User> findByUsername(String username) {
+        QueryWrapper<UserEntity> wrapper = new QueryWrapper<>();
+        wrapper.eq("username", username);
+        return Optional.ofNullable(userMapper.selectOne(wrapper))
+                .map(assembler::toDomain);
+    }
+
+    @Override
+    public Optional<User> findByEmail(String email) {
+        QueryWrapper<UserEntity> wrapper = new QueryWrapper<>();
+        wrapper.eq("email", email);
+        return Optional.ofNullable(userMapper.selectOne(wrapper))
                 .map(assembler::toDomain);
     }
 
