@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Web MVC 配置。
- * 注册会话拦截器，排除公开端点（setup、unlock、status、verify-totp）。
+ * 注册会话拦截器，排除公开端点（register、login、status、verify-totp）。
  */
 @Configuration
 @RequiredArgsConstructor
@@ -21,8 +21,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(sessionInterceptor)
                 .addPathPatterns("/api/**")
                 .excludePathPatterns(
-                        "/api/auth/setup",
-                        "/api/auth/unlock",
+                        "/api/auth/register",
+                        "/api/auth/login",
                         "/api/auth/status",
                         "/api/auth/verify-totp",
                         // Swagger / OpenAPI docs

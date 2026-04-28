@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.pm.passwordmanager.api.assembler.AuthDtoMapper;
 import com.pm.passwordmanager.api.dto.request.EnableMfaRequest;
+import com.pm.passwordmanager.api.dto.request.LoginRequest;
+import com.pm.passwordmanager.api.dto.request.RegisterRequest;
 import com.pm.passwordmanager.api.dto.request.VerifyTotpRequest;
 import com.pm.passwordmanager.api.dto.response.ApiResponse;
 import com.pm.passwordmanager.api.dto.response.MfaSetupResponse;
@@ -24,7 +26,6 @@ import lombok.RequiredArgsConstructor;
 /**
  * 认证控制器。
  * 提供用户注册、登录、MFA 管理等 API 端点。
- * TODO: Task 6 将完成完整的 API 层重构（新增 RegisterRequest/LoginRequest DTO）。
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -43,7 +44,18 @@ public class AuthController {
         return ApiResponse.success(authService.isInitialized());
     }
 
-    // TODO: Task 6.3 - POST /api/auth/register and POST /api/auth/login endpoints
+    @PostMapping("/register")
+    @Operation(summary = "用户注册")
+    public ApiResponse<Void> register(@Valid @RequestBody RegisterRequest request) {
+        authService.register(authDtoMapper.toCommand(request));
+        return ApiResponse.success();
+    }
+
+    @PostMapping("/login")
+    @Operation(summary = "用户登录")
+    public ApiResponse<UnlockResultResponse> login(@Valid @RequestBody LoginRequest request) {
+        return ApiResponse.success(authService.login(authDtoMapper.toCommand(request)));
+    }
 
     @PostMapping("/verify-totp")
     @Operation(summary = "验证 TOTP 码")
