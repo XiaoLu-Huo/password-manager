@@ -2,12 +2,14 @@ package com.pm.passwordmanager.domain.service.impl;
 
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.stereotype.Service;
 
 import com.pm.passwordmanager.api.dto.response.UnlockResultResponse;
-import com.pm.passwordmanager.domain.command.SetupMasterPasswordCommand;
-import com.pm.passwordmanager.domain.command.UnlockVaultCommand;
+import com.pm.passwordmanager.domain.command.LoginCommand;
+import com.pm.passwordmanager.domain.command.RegisterCommand;
 import com.pm.passwordmanager.domain.model.User;
 import com.pm.passwordmanager.domain.repository.UserRepository;
 import com.pm.passwordmanager.domain.service.AuthService;
@@ -15,11 +17,10 @@ import com.pm.passwordmanager.domain.service.MfaService;
 import com.pm.passwordmanager.domain.service.SessionService;
 import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
+import com.pm.passwordmanager.infrastructure.config.SessionContextHolder;
 import com.pm.passwordmanager.infrastructure.encryption.Argon2Hasher;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptedData;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptionEngine;
-
-import com.pm.passwordmanager.infrastructure.config.SessionContextHolder;
 
 import lombok.RequiredArgsConstructor;
 
@@ -39,35 +40,54 @@ public class AuthServiceImpl implements AuthService {
      * Temporary storage for DEK pending MFA verification.
      * Key: userId, Value: decrypted DEK bytes.
      */
-    private final java.util.concurrent.ConcurrentHashMap<Long, byte[]> pendingMfaDek = new java.util.concurrent.ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, byte[]> pendingMfaDek = new ConcurrentHashMap<>();
+
+    /**
+     * Maps MFA temporary token to userId for the MFA verification step.
+     */
+    private final ConcurrentHashMap<String, Long> mfaTokenToUserId = new ConcurrentHashMap<>();
 
     @Override
-    public void setup(SetupMasterPasswordCommand command) {
+    public void register(RegisterCommand command) {
+        String username = command.getUsername();
+        String email = command.getEmail();
         String masterPassword = command.getMasterPassword();
 
-        // 1. 验证密码复杂度（委托给领域模型）
+        // 1. 验证用户名、邮箱、密码复杂度
+        User.validateUsername(username);
+        User.validateEmail(email);
         User.validatePasswordComplexity(masterPassword);
 
-        // 2. 生成随机 salt
+        // 2. 检查用户名唯一性
+        if (userRepository.findByUsername(username).isPresent()) {
+            throw new BusinessException(ErrorCode.USERNAME_DUPLICATE);
+        }
+
+        // 3. 检查邮箱唯一性
+        if (userRepository.findByEmail(email).isPresent()) {
+            throw new BusinessException(ErrorCode.EMAIL_DUPLICATE);
+        }
+
+        // 4. 生成随机 salt
         byte[] salt = argon2Hasher.generateSalt();
 
-        // 3. Argon2id 哈希密码（用于存储验证）
+        // 5. Argon2id 哈希密码
         String passwordHash = argon2Hasher.hash(masterPassword, salt);
 
-        // 4. 派生 KEK
+        // 6. 派生 KEK
         byte[] kek = argon2Hasher.deriveKey(masterPassword, salt, KEK_LENGTH_BYTES);
 
-        // 5. 生成随机 DEK
+        // 7. 生成随机 DEK
         byte[] dek = encryptionEngine.generateDek();
 
-        // 6. 用 KEK 加密 DEK
+        // 8. 用 KEK 加密 DEK
         EncryptedData encryptedDek = encryptionEngine.encrypt(dek, kek);
-
-        // 7. 将 IV + ciphertext 合并存储
         byte[] encryptedDekBlob = combineIvAndCiphertext(encryptedDek);
 
-        // 8. 构建领域模型并通过仓储持久化
+        // 9. 构建用户并保存
         User user = User.builder()
+                .username(username)
+                .email(email)
                 .masterPasswordHash(passwordHash)
                 .salt(Base64.getEncoder().encodeToString(salt))
                 .encryptionKeyEncrypted(encryptedDekBlob)
@@ -81,44 +101,57 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public UnlockResultResponse unlock(UnlockVaultCommand command) {
+    public UnlockResultResponse login(LoginCommand command) {
+        String identifier = command.getIdentifier();
         String masterPassword = command.getMasterPassword();
 
-        // 1. 查询用户记录（单用户系统，取第一条）
-        User user = getUser();
+        // 1. 根据 identifier 是否包含 @ 决定查找策略
+        User user;
+        if (identifier.contains("@")) {
+            user = userRepository.findByEmail(identifier).orElse(null);
+        } else {
+            user = userRepository.findByUsername(identifier).orElse(null);
+        }
 
-        // 2. 检查是否被锁定（委托给领域模型）
+        // 2. 用户不存在 → 通用错误（不泄露用户是否存在）
+        if (user == null) {
+            throw new BusinessException(ErrorCode.CREDENTIALS_INVALID);
+        }
+
+        // 3. 检查锁定状态
         user.checkLockStatus();
 
-        // 3. 验证密码
+        // 4. 验证密码
         byte[] salt = Base64.getDecoder().decode(user.getSalt());
         boolean passwordCorrect = argon2Hasher.verify(masterPassword, salt, user.getMasterPasswordHash());
 
         if (!passwordCorrect) {
             user.handleFailedAttempt();
             userRepository.updateById(user);
-            throw new BusinessException(ErrorCode.MASTER_PASSWORD_WRONG);
+            throw new BusinessException(ErrorCode.CREDENTIALS_INVALID);
         }
 
-        // 4. 密码正确：重置失败计数（委托给领域模型）
+        // 5. 密码正确：重置失败计数
         user.resetFailedAttempts();
         userRepository.updateById(user);
 
-        // 5. 派生 KEK 并解密 DEK
+        // 6. 派生 KEK 并解密 DEK
         byte[] kek = argon2Hasher.deriveKey(masterPassword, salt, KEK_LENGTH_BYTES);
         EncryptedData encryptedDek = splitIvAndCiphertext(user.getEncryptionKeyEncrypted());
         byte[] dek = encryptionEngine.decrypt(encryptedDek, kek);
 
-        // 6. 检查 MFA 是否启用
+        // 7. 检查 MFA 是否启用
         if (mfaService.isMfaEnabled(user.getId())) {
+            String mfaToken = UUID.randomUUID().toString();
+            mfaTokenToUserId.put(mfaToken, user.getId());
             pendingMfaDek.put(user.getId(), dek);
             return UnlockResultResponse.builder()
                     .mfaRequired(true)
-                    .sessionToken(null)
+                    .sessionToken(mfaToken)
                     .build();
         }
 
-        // 7. MFA 未启用：直接将 DEK 存入会话
+        // 8. MFA 未启用：直接将 DEK 存入会话
         sessionService.storeDek(user.getId(), dek);
 
         return UnlockResultResponse.builder()
@@ -128,53 +161,51 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public UnlockResultResponse verifyTotpAndUnlock(String totpCode) {
-        User user = getUser();
+    public UnlockResultResponse verifyTotpAndUnlock(String mfaToken, String totpCode) {
+        // 1. 从 mfaToken 查找 userId
+        Long userId = mfaTokenToUserId.get(mfaToken);
+        if (userId == null) {
+            throw new BusinessException(ErrorCode.VAULT_LOCKED);
+        }
 
-        // 1. 检查是否有待验证的 MFA 会话
-        byte[] dek = pendingMfaDek.get(user.getId());
+        // 2. 获取待验证的 DEK
+        byte[] dek = pendingMfaDek.get(userId);
         if (dek == null) {
             throw new BusinessException(ErrorCode.VAULT_LOCKED);
         }
 
-        // 2. 临时存入 DEK 以便 MfaService 解密 TOTP 密钥
-        sessionService.storeDek(user.getId(), dek);
+        // 3. 临时存入 DEK 以便 MfaService 解密 TOTP 密钥
+        sessionService.storeDek(userId, dek);
 
-        // 3. 验证 TOTP 码
-        boolean valid = mfaService.verifyTotp(user.getId(), totpCode);
+        // 4. 验证 TOTP 码
+        boolean valid = mfaService.verifyTotp(userId, totpCode);
         if (!valid) {
-            sessionService.clearSession(user.getId());
+            sessionService.clearSession(userId);
             throw new BusinessException(ErrorCode.TOTP_INVALID);
         }
 
-        // 4. 验证通过：清除待验证状态，DEK 已在会话中
-        pendingMfaDek.remove(user.getId());
+        // 5. 验证通过：清除待验证状态
+        pendingMfaDek.remove(userId);
+        mfaTokenToUserId.remove(mfaToken);
 
         return UnlockResultResponse.builder()
                 .mfaRequired(false)
-                .sessionToken(sessionService.generateToken(user.getId()))
+                .sessionToken(sessionService.generateToken(userId))
                 .build();
     }
 
     @Override
     public Long getCurrentUserId() {
-        // Prefer the userId set by SessionInterceptor (token-validated)
         Long userId = SessionContextHolder.getCurrentUserId();
-        if (userId != null) {
-            return userId;
+        if (userId == null) {
+            throw new BusinessException(ErrorCode.SESSION_EXPIRED);
         }
-        // Fallback for non-intercepted paths (e.g., setup/unlock)
-        return getUser().getId();
+        return userId;
     }
 
     @Override
     public boolean isInitialized() {
-        return userRepository.findFirst().isPresent();
-    }
-
-    private User getUser() {
-        return userRepository.findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.VAULT_LOCKED));
+        return true;
     }
 
     /** 将 IV 和密文合并为单个字节数组：[IV (12 bytes)] + [ciphertext] */

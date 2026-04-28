@@ -21,13 +21,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.pm.passwordmanager.domain.command.SetupMasterPasswordCommand;
-import com.pm.passwordmanager.domain.command.UnlockVaultCommand;
+import com.pm.passwordmanager.domain.command.LoginCommand;
+import com.pm.passwordmanager.domain.command.RegisterCommand;
 import com.pm.passwordmanager.api.dto.response.UnlockResultResponse;
 import com.pm.passwordmanager.domain.model.User;
 import com.pm.passwordmanager.domain.repository.UserRepository;
 import com.pm.passwordmanager.exception.BusinessException;
 import com.pm.passwordmanager.exception.ErrorCode;
+import com.pm.passwordmanager.domain.service.MfaService;
 import com.pm.passwordmanager.domain.service.SessionService;
 import com.pm.passwordmanager.infrastructure.encryption.Argon2Hasher;
 import com.pm.passwordmanager.infrastructure.encryption.EncryptedData;
@@ -45,7 +46,7 @@ class AuthServiceImplTest {
     @Mock
     private SessionService sessionService;
     @Mock
-    private com.pm.passwordmanager.domain.service.MfaService mfaService;
+    private MfaService mfaService;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -63,14 +64,18 @@ class AuthServiceImplTest {
         testPasswordHash = "dGVzdEhhc2g=";
     }
 
-    // ========== setup tests ==========
+    // ========== register tests ==========
 
     @Test
-    void should_createMasterPassword_when_passwordMeetsComplexity() {
-        SetupMasterPasswordCommand request = SetupMasterPasswordCommand.builder()
+    void should_registerUser_when_validCredentials() {
+        RegisterCommand request = RegisterCommand.builder()
+                .username("testuser")
+                .email("test@example.com")
                 .masterPassword("MyStr0ng!Pass")
                 .build();
 
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.empty());
         when(argon2Hasher.generateSalt()).thenReturn(testSalt);
         when(argon2Hasher.hash(eq("MyStr0ng!Pass"), eq(testSalt))).thenReturn(testPasswordHash);
         when(argon2Hasher.deriveKey(eq("MyStr0ng!Pass"), eq(testSalt), eq(32))).thenReturn(testKek);
@@ -78,12 +83,14 @@ class AuthServiceImplTest {
         when(encryptionEngine.encrypt(eq(testDek), eq(testKek)))
                 .thenReturn(new EncryptedData(new byte[]{99}, new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}));
 
-        authService.setup(request);
+        authService.register(request);
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
 
         User saved = captor.getValue();
+        assertThat(saved.getUsername()).isEqualTo("testuser");
+        assertThat(saved.getEmail()).isEqualTo("test@example.com");
         assertThat(saved.getMasterPasswordHash()).isEqualTo(testPasswordHash);
         assertThat(saved.getSalt()).isEqualTo(Base64.getEncoder().encodeToString(testSalt));
         assertThat(saved.getEncryptionKeyEncrypted()).isNotNull();
@@ -91,46 +98,53 @@ class AuthServiceImplTest {
     }
 
     @Test
-    void should_rejectSetup_when_passwordTooShort() {
-        SetupMasterPasswordCommand request = SetupMasterPasswordCommand.builder()
+    void should_rejectRegister_when_passwordTooShort() {
+        RegisterCommand request = RegisterCommand.builder()
+                .username("testuser")
+                .email("test@example.com")
                 .masterPassword("Short1!")
                 .build();
 
-        assertThatThrownBy(() -> authService.setup(request))
+        assertThatThrownBy(() -> authService.register(request))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.MASTER_PASSWORD_TOO_WEAK);
     }
 
     @Test
-    void should_rejectSetup_when_passwordLacksCharacterTypes() {
-        SetupMasterPasswordCommand request = SetupMasterPasswordCommand.builder()
+    void should_rejectRegister_when_passwordLacksCharacterTypes() {
+        RegisterCommand request = RegisterCommand.builder()
+                .username("testuser")
+                .email("test@example.com")
                 .masterPassword("abcdefghijkl")
                 .build();
 
-        assertThatThrownBy(() -> authService.setup(request))
+        assertThatThrownBy(() -> authService.register(request))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.MASTER_PASSWORD_TOO_WEAK);
     }
 
     @Test
-    void should_rejectSetup_when_passwordHasOnlyTwoTypes() {
-        SetupMasterPasswordCommand request = SetupMasterPasswordCommand.builder()
+    void should_rejectRegister_when_passwordHasOnlyTwoTypes() {
+        RegisterCommand request = RegisterCommand.builder()
+                .username("testuser")
+                .email("test@example.com")
                 .masterPassword("AbcdefghijkL")
                 .build();
 
-        assertThatThrownBy(() -> authService.setup(request))
+        assertThatThrownBy(() -> authService.register(request))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.MASTER_PASSWORD_TOO_WEAK);
     }
 
-    // ========== unlock tests ==========
+    // ========== login tests ==========
 
     @Test
-    void should_unlockVault_when_correctPassword() {
-        UnlockVaultCommand request = UnlockVaultCommand.builder()
+    void should_loginSuccessfully_when_correctPasswordByUsername() {
+        LoginCommand request = LoginCommand.builder()
+                .identifier("testuser")
                 .masterPassword("MyStr0ng!Pass")
                 .build();
 
@@ -142,6 +156,7 @@ class AuthServiceImplTest {
 
         User user = User.builder()
                 .id(1L)
+                .username("testuser")
                 .masterPasswordHash(testPasswordHash)
                 .salt(Base64.getEncoder().encodeToString(testSalt))
                 .encryptionKeyEncrypted(combined)
@@ -149,12 +164,13 @@ class AuthServiceImplTest {
                 .autoLockMinutes(5)
                 .build();
 
-        when(userRepository.findFirst()).thenReturn(Optional.of(user));
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(argon2Hasher.verify(eq("MyStr0ng!Pass"), eq(testSalt), eq(testPasswordHash))).thenReturn(true);
         when(argon2Hasher.deriveKey(eq("MyStr0ng!Pass"), eq(testSalt), eq(32))).thenReturn(testKek);
         when(encryptionEngine.decrypt(any(EncryptedData.class), eq(testKek))).thenReturn(testDek);
+        when(mfaService.isMfaEnabled(1L)).thenReturn(false);
 
-        UnlockResultResponse result = authService.unlock(request);
+        UnlockResultResponse result = authService.login(request);
 
         assertThat(result.isMfaRequired()).isFalse();
         verify(sessionService).storeDek(eq(1L), eq(testDek));
@@ -162,13 +178,15 @@ class AuthServiceImplTest {
     }
 
     @Test
-    void should_rejectUnlock_when_masterPasswordIsWrong() {
-        UnlockVaultCommand request = UnlockVaultCommand.builder()
+    void should_returnCredentialsInvalid_when_wrongPassword() {
+        LoginCommand request = LoginCommand.builder()
+                .identifier("testuser")
                 .masterPassword("WrongPassword1!")
                 .build();
 
         User user = User.builder()
                 .id(1L)
+                .username("testuser")
                 .masterPasswordHash(testPasswordHash)
                 .salt(Base64.getEncoder().encodeToString(testSalt))
                 .encryptionKeyEncrypted(new byte[14])
@@ -176,15 +194,14 @@ class AuthServiceImplTest {
                 .autoLockMinutes(5)
                 .build();
 
-        when(userRepository.findFirst()).thenReturn(Optional.of(user));
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(argon2Hasher.verify(eq("WrongPassword1!"), eq(testSalt), eq(testPasswordHash))).thenReturn(false);
 
-        assertThatThrownBy(() -> authService.unlock(request))
+        assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.MASTER_PASSWORD_WRONG);
+                .isEqualTo(ErrorCode.CREDENTIALS_INVALID);
 
-        // Failed attempts should be incremented
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).updateById(captor.capture());
         assertThat(captor.getValue().getFailedAttempts()).isEqualTo(1);
@@ -192,12 +209,14 @@ class AuthServiceImplTest {
 
     @Test
     void should_lockAccount_when_fiveConsecutiveFailures() {
-        UnlockVaultCommand request = UnlockVaultCommand.builder()
+        LoginCommand request = LoginCommand.builder()
+                .identifier("testuser")
                 .masterPassword("WrongPassword1!")
                 .build();
 
         User user = User.builder()
                 .id(1L)
+                .username("testuser")
                 .masterPasswordHash(testPasswordHash)
                 .salt(Base64.getEncoder().encodeToString(testSalt))
                 .encryptionKeyEncrypted(new byte[14])
@@ -205,13 +224,13 @@ class AuthServiceImplTest {
                 .autoLockMinutes(5)
                 .build();
 
-        when(userRepository.findFirst()).thenReturn(Optional.of(user));
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(argon2Hasher.verify(any(), any(), any())).thenReturn(false);
 
-        assertThatThrownBy(() -> authService.unlock(request))
+        assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.MASTER_PASSWORD_WRONG);
+                .isEqualTo(ErrorCode.CREDENTIALS_INVALID);
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).updateById(captor.capture());
@@ -222,13 +241,15 @@ class AuthServiceImplTest {
     }
 
     @Test
-    void should_rejectUnlock_when_accountIsLocked() {
-        UnlockVaultCommand request = UnlockVaultCommand.builder()
+    void should_rejectLogin_when_accountIsLocked() {
+        LoginCommand request = LoginCommand.builder()
+                .identifier("testuser")
                 .masterPassword("MyStr0ng!Pass")
                 .build();
 
         User user = User.builder()
                 .id(1L)
+                .username("testuser")
                 .masterPasswordHash(testPasswordHash)
                 .salt(Base64.getEncoder().encodeToString(testSalt))
                 .encryptionKeyEncrypted(new byte[14])
@@ -237,9 +258,9 @@ class AuthServiceImplTest {
                 .autoLockMinutes(5)
                 .build();
 
-        when(userRepository.findFirst()).thenReturn(Optional.of(user));
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
 
-        assertThatThrownBy(() -> authService.unlock(request))
+        assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.ACCOUNT_LOCKED);
@@ -248,8 +269,9 @@ class AuthServiceImplTest {
     }
 
     @Test
-    void should_allowUnlock_when_lockoutPeriodExpired() {
-        UnlockVaultCommand request = UnlockVaultCommand.builder()
+    void should_allowLogin_when_lockoutPeriodExpired() {
+        LoginCommand request = LoginCommand.builder()
+                .identifier("testuser")
                 .masterPassword("MyStr0ng!Pass")
                 .build();
 
@@ -257,6 +279,7 @@ class AuthServiceImplTest {
 
         User user = User.builder()
                 .id(1L)
+                .username("testuser")
                 .masterPasswordHash(testPasswordHash)
                 .salt(Base64.getEncoder().encodeToString(testSalt))
                 .encryptionKeyEncrypted(combined)
@@ -265,12 +288,13 @@ class AuthServiceImplTest {
                 .autoLockMinutes(5)
                 .build();
 
-        when(userRepository.findFirst()).thenReturn(Optional.of(user));
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(argon2Hasher.verify(any(), any(), any())).thenReturn(true);
         when(argon2Hasher.deriveKey(any(), any(), anyInt())).thenReturn(testKek);
         when(encryptionEngine.decrypt(any(EncryptedData.class), any())).thenReturn(testDek);
+        when(mfaService.isMfaEnabled(1L)).thenReturn(false);
 
-        UnlockResultResponse result = authService.unlock(request);
+        UnlockResultResponse result = authService.login(request);
 
         assertThat(result.isMfaRequired()).isFalse();
         verify(sessionService).storeDek(eq(1L), any());
@@ -278,7 +302,8 @@ class AuthServiceImplTest {
 
     @Test
     void should_resetFailedAttempts_when_correctPasswordAfterFailures() {
-        UnlockVaultCommand request = UnlockVaultCommand.builder()
+        LoginCommand request = LoginCommand.builder()
+                .identifier("testuser")
                 .masterPassword("MyStr0ng!Pass")
                 .build();
 
@@ -286,6 +311,7 @@ class AuthServiceImplTest {
 
         User user = User.builder()
                 .id(1L)
+                .username("testuser")
                 .masterPasswordHash(testPasswordHash)
                 .salt(Base64.getEncoder().encodeToString(testSalt))
                 .encryptionKeyEncrypted(combined)
@@ -293,12 +319,13 @@ class AuthServiceImplTest {
                 .autoLockMinutes(5)
                 .build();
 
-        when(userRepository.findFirst()).thenReturn(Optional.of(user));
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(argon2Hasher.verify(any(), any(), any())).thenReturn(true);
         when(argon2Hasher.deriveKey(any(), any(), anyInt())).thenReturn(testKek);
         when(encryptionEngine.decrypt(any(EncryptedData.class), any())).thenReturn(testDek);
+        when(mfaService.isMfaEnabled(1L)).thenReturn(false);
 
-        authService.unlock(request);
+        authService.login(request);
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).updateById(captor.capture());
@@ -306,7 +333,7 @@ class AuthServiceImplTest {
         assertThat(captor.getValue().getLockedUntil()).isNull();
     }
 
-    // ========== password complexity validation tests (now on User domain model) ==========
+    // ========== password complexity validation tests ==========
 
     @Test
     void should_acceptPassword_when_threeCharacterTypes() {

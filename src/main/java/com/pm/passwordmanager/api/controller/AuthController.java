@@ -7,9 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.pm.passwordmanager.api.assembler.AuthDtoMapper;
-import com.pm.passwordmanager.api.dto.request.CreateMasterPasswordRequest;
 import com.pm.passwordmanager.api.dto.request.EnableMfaRequest;
-import com.pm.passwordmanager.api.dto.request.UnlockVaultRequest;
 import com.pm.passwordmanager.api.dto.request.VerifyTotpRequest;
 import com.pm.passwordmanager.api.dto.response.ApiResponse;
 import com.pm.passwordmanager.api.dto.response.MfaSetupResponse;
@@ -25,12 +23,13 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * 认证控制器。
- * 提供主密码设置、密码库解锁/锁定、MFA 管理等 API 端点。
+ * 提供用户注册、登录、MFA 管理等 API 端点。
+ * TODO: Task 6 将完成完整的 API 层重构（新增 RegisterRequest/LoginRequest DTO）。
  */
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-@Tag(name = "认证管理", description = "主密码与 MFA 认证相关接口")
+@Tag(name = "认证管理", description = "用户注册、登录与 MFA 认证相关接口")
 public class AuthController {
 
     private final AuthService authService;
@@ -39,28 +38,17 @@ public class AuthController {
     private final SessionService sessionService;
 
     @GetMapping("/status")
-    @Operation(summary = "检查主密码是否已设置")
+    @Operation(summary = "检查系统是否可用")
     public ApiResponse<Boolean> status() {
         return ApiResponse.success(authService.isInitialized());
     }
 
-    @PostMapping("/setup")
-    @Operation(summary = "首次创建主密码")
-    public ApiResponse<Void> setup(@Valid @RequestBody CreateMasterPasswordRequest request) {
-        authService.setup(authDtoMapper.toCommand(request));
-        return ApiResponse.success();
-    }
-
-    @PostMapping("/unlock")
-    @Operation(summary = "解锁密码库")
-    public ApiResponse<UnlockResultResponse> unlock(@Valid @RequestBody UnlockVaultRequest request) {
-        return ApiResponse.success(authService.unlock(authDtoMapper.toCommand(request)));
-    }
+    // TODO: Task 6.3 - POST /api/auth/register and POST /api/auth/login endpoints
 
     @PostMapping("/verify-totp")
     @Operation(summary = "验证 TOTP 码")
     public ApiResponse<UnlockResultResponse> verifyTotp(@Valid @RequestBody VerifyTotpRequest request) {
-        return ApiResponse.success(authService.verifyTotpAndUnlock(request.getTotpCode()));
+        return ApiResponse.success(authService.verifyTotpAndUnlock(request.getMfaToken(), request.getTotpCode()));
     }
 
     @PostMapping("/lock")

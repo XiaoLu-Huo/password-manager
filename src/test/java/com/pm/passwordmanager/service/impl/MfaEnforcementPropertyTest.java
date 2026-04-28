@@ -15,7 +15,7 @@ import static org.mockito.Mockito.when;
 import java.util.Base64;
 import java.util.Optional;
 
-import com.pm.passwordmanager.domain.command.UnlockVaultCommand;
+import com.pm.passwordmanager.domain.command.LoginCommand;
 import com.pm.passwordmanager.api.dto.response.UnlockResultResponse;
 import com.pm.passwordmanager.domain.model.User;
 import com.pm.passwordmanager.domain.repository.UserRepository;
@@ -45,6 +45,8 @@ import net.jqwik.api.lifecycle.BeforeTry;
 @Label("Feature: password-manager, Property 4: MFA 双因素强制")
 class MfaEnforcementPropertyTest {
 
+    private static final String TEST_USERNAME = "testuser";
+
     private UserRepository userRepository;
     private Argon2Hasher argon2Hasher;
     private EncryptionEngine encryptionEngine;
@@ -57,7 +59,6 @@ class MfaEnforcementPropertyTest {
     private final String testPasswordHash = "testHash";
     private final byte[] testDek = new byte[32];
     private final byte[] testKek = new byte[32];
-    // 12 bytes IV + 2 bytes ciphertext
     private final byte[] testEncryptedDek = new byte[14];
 
     @BeforeTry
@@ -73,6 +74,7 @@ class MfaEnforcementPropertyTest {
     private User buildUser() {
         return User.builder()
                 .id(1L)
+                .username(TEST_USERNAME)
                 .masterPasswordHash(testPasswordHash)
                 .salt(encodedSalt)
                 .encryptionKeyEncrypted(testEncryptedDek)
@@ -83,18 +85,12 @@ class MfaEnforcementPropertyTest {
     }
 
     private void stubCorrectPassword() {
-        when(userRepository.findFirst()).thenReturn(Optional.of(buildUser()));
+        when(userRepository.findByUsername(TEST_USERNAME)).thenReturn(Optional.of(buildUser()));
         when(argon2Hasher.verify(any(), any(), any())).thenReturn(true);
         when(argon2Hasher.deriveKey(any(), any(), anyInt())).thenReturn(testKek);
         when(encryptionEngine.decrypt(any(EncryptedData.class), any())).thenReturn(testDek);
     }
 
-    /**
-     * 启用 MFA 后，仅提供正确主密码应返回 mfaRequired=true，
-     * DEK 不应存入会话（密码库未解锁）。
-     *
-     * **Validates: Requirements 1.10**
-     */
     @Property(tries = 100)
     @Label("should_requireTotp_when_mfaEnabledAndOnlyMasterPasswordProvided")
     void should_requireTotp_when_mfaEnabledAndOnlyMasterPasswordProvided(
@@ -103,21 +99,17 @@ class MfaEnforcementPropertyTest {
         stubCorrectPassword();
         when(mfaService.isMfaEnabled(anyLong())).thenReturn(true);
 
-        UnlockVaultCommand request = UnlockVaultCommand.builder()
+        LoginCommand request = LoginCommand.builder()
+                .identifier(TEST_USERNAME)
                 .masterPassword(masterPassword)
                 .build();
 
-        UnlockResultResponse result = authService.unlock(request);
+        UnlockResultResponse result = authService.login(request);
 
         assertThat(result.isMfaRequired()).isTrue();
         verify(sessionService, never()).storeDek(anyLong(), any());
     }
 
-    /**
-     * 启用 MFA 后，提供正确主密码 + 无效 TOTP 码应拒绝解锁。
-     *
-     * **Validates: Requirements 1.11**
-     */
     @Property(tries = 100)
     @Label("should_rejectUnlock_when_mfaEnabledAndTotpCodeInvalid")
     void should_rejectUnlock_when_mfaEnabledAndTotpCodeInvalid(
@@ -128,23 +120,21 @@ class MfaEnforcementPropertyTest {
         when(mfaService.isMfaEnabled(anyLong())).thenReturn(true);
         when(mfaService.verifyTotp(anyLong(), anyString())).thenReturn(false);
 
-        UnlockVaultCommand request = UnlockVaultCommand.builder()
+        LoginCommand request = LoginCommand.builder()
+                .identifier(TEST_USERNAME)
                 .masterPassword(masterPassword)
                 .build();
-        UnlockResultResponse unlockResult = authService.unlock(request);
-        assertThat(unlockResult.isMfaRequired()).isTrue();
+        UnlockResultResponse loginResult = authService.login(request);
+        assertThat(loginResult.isMfaRequired()).isTrue();
 
-        assertThatThrownBy(() -> authService.verifyTotpAndUnlock(invalidTotpCode))
+        // Use the mfaToken returned from login for TOTP verification
+        String mfaToken = loginResult.getSessionToken();
+        assertThatThrownBy(() -> authService.verifyTotpAndUnlock(mfaToken, invalidTotpCode))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.TOTP_INVALID));
     }
 
-    /**
-     * 启用 MFA 后，提供正确主密码 + 有效 TOTP 码应成功解锁。
-     *
-     * **Validates: Requirements 1.10, 1.11**
-     */
     @Property(tries = 100)
     @Label("should_unlockVault_when_mfaEnabledAndBothPasswordAndTotpValid")
     void should_unlockVault_when_mfaEnabledAndBothPasswordAndTotpValid(
@@ -155,23 +145,20 @@ class MfaEnforcementPropertyTest {
         when(mfaService.isMfaEnabled(anyLong())).thenReturn(true);
         when(mfaService.verifyTotp(anyLong(), eq(validTotpCode))).thenReturn(true);
 
-        UnlockVaultCommand request = UnlockVaultCommand.builder()
+        LoginCommand request = LoginCommand.builder()
+                .identifier(TEST_USERNAME)
                 .masterPassword(masterPassword)
                 .build();
-        UnlockResultResponse unlockResult = authService.unlock(request);
-        assertThat(unlockResult.isMfaRequired()).isTrue();
+        UnlockResultResponse loginResult = authService.login(request);
+        assertThat(loginResult.isMfaRequired()).isTrue();
 
-        UnlockResultResponse totpResult = authService.verifyTotpAndUnlock(validTotpCode);
+        String mfaToken = loginResult.getSessionToken();
+        UnlockResultResponse totpResult = authService.verifyTotpAndUnlock(mfaToken, validTotpCode);
         assertThat(totpResult.isMfaRequired()).isFalse();
 
         verify(sessionService).storeDek(eq(1L), any());
     }
 
-    /**
-     * MFA 未启用时，仅提供正确主密码即可解锁，mfaRequired 应为 false。
-     *
-     * **Validates: Requirements 1.10 (反向验证)**
-     */
     @Property(tries = 100)
     @Label("should_unlockDirectly_when_mfaNotEnabledAndPasswordCorrect")
     void should_unlockDirectly_when_mfaNotEnabledAndPasswordCorrect(
@@ -180,17 +167,16 @@ class MfaEnforcementPropertyTest {
         stubCorrectPassword();
         when(mfaService.isMfaEnabled(anyLong())).thenReturn(false);
 
-        UnlockVaultCommand request = UnlockVaultCommand.builder()
+        LoginCommand request = LoginCommand.builder()
+                .identifier(TEST_USERNAME)
                 .masterPassword(masterPassword)
                 .build();
 
-        UnlockResultResponse result = authService.unlock(request);
+        UnlockResultResponse result = authService.login(request);
 
         assertThat(result.isMfaRequired()).isFalse();
         verify(sessionService).storeDek(eq(1L), any());
     }
-
-    // --- Providers ---
 
     @Provide
     Arbitrary<String> validPasswords() {
